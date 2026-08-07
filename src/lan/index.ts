@@ -2,11 +2,11 @@ export { LanManager } from "./lan-manager";
 export type { LanManagerEvents } from "./lan-manager";
 export { LanClient } from "./lan-client";
 export type { ConnectionState } from "./lan-client";
-export {
-  MessageType,
-  createMessage,
-  isValidMessage,
-} from "./lan-message";
+export { CoopManager } from "./coop-manager";
+export type { CoopState } from "./coop-manager";
+export { LobbyCoordinator } from "./lobby-phase";
+export type { LobbyEventCallback } from "./lobby-phase";
+export { MessageType, createMessage, isValidMessage } from "./lan-message";
 export type {
   LanMessage,
   PlayerRole,
