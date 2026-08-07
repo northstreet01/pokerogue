@@ -21,6 +21,7 @@ export class LobbyUiHandler extends UiHandler {
   private playerListText: Phaser.GameObjects.Text | null = null;
   private readyText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
+  private cancelHint: Phaser.GameObjects.Text | null = null;
 
   private isReady = false;
   private players: PlayerInfo[] = [];
@@ -61,8 +62,8 @@ export class LobbyUiHandler extends UiHandler {
     this.hintText = addTextObject(cw / 2, winY + 240, "", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
     this.container.add(this.hintText);
 
-    const cancelHint = addTextObject(cw / 2, winY + winH - 20, "按 X 取消并返回", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
-    this.container.add(cancelHint);
+    this.cancelHint = addTextObject(cw / 2, winY + winH - 20, "", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
+    this.container.add(this.cancelHint);
 
     this.getUi().add(this.container);
   }
@@ -114,9 +115,11 @@ export class LobbyUiHandler extends UiHandler {
     if (lanManager.isHost()) {
       this.hostInfoText?.setText("等待对手连接...");
       this.hintText?.setText("将你的 IP 地址告诉对方");
+      this.cancelHint?.setText("按 X 关闭房间并返回");
     } else {
       this.hostInfoText?.setText("已连接到 Host");
       this.hintText?.setText("等待 Host 启动游戏");
+      this.cancelHint?.setText("按 X 离开房间并返回");
     }
 
     return true;
