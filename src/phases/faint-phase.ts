@@ -8,6 +8,7 @@ import { classicFinalBossDialogue } from "#data/dialogue";
 import { SpeciesFormChangeActiveTrigger } from "#data/form-change-triggers";
 import { ArenaTagSide } from "#enums/arena-tag-side";
 import { BattleType } from "#enums/battle-type";
+import { CoopManager } from "#app/lan/coop-manager";
 import type { BattlerIndex } from "#enums/battler-index";
 import { BattlerTagLapseType } from "#enums/battler-tag-lapse-type";
 import { BattlerTagType } from "#enums/battler-tag-type";
@@ -162,7 +163,18 @@ export class FaintPhase extends PokemonPhase {
       const legalPlayerPartyPokemon = legalPlayerPokemon.filter(p => !p.isActive(true));
       if (legalPlayerPokemon.length === 0) {
         /** If the player doesn't have any legal Pokemon, end the game */
-        globalScene.phaseManager.unshiftNew("GameOverPhase");
+        const coopManager = CoopManager.getInstance();
+        if (coopManager.isActive()) {
+          // 合作模式：通知队友我方全灭，不立即 GameOver
+          coopManager.notifyLocalFaint(true);
+          // 如果远程玩家也全灭了，才 GameOver
+          if (coopManager.getState().remotePlayerAllFainted) {
+            globalScene.phaseManager.unshiftNew("GameOverPhase");
+          }
+          // 否则等待队友清完这波 → 复活
+        } else {
+          globalScene.phaseManager.unshiftNew("GameOverPhase");
+        }
       } else if (
         globalScene.currentBattle.double
         && legalPlayerPokemon.length === 1

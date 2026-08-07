@@ -9,6 +9,8 @@ import { TextStyle } from "#enums/text-style";
 import { LanManager } from "#app/lan/lan-manager";
 import type { PlayerInfo } from "#app/lan/lan-message";
 import { LobbyCoordinator } from "#app/lan/lobby-phase";
+import type { GameStartPayload } from "#app/lan/lan-message";
+import { CoopManager } from "#app/lan/coop-manager";
 import { UiHandler } from "./ui-handler";
 import { addWindow } from "#ui/ui-theme";
 import { addTextObject } from "#ui/text";
@@ -90,8 +92,11 @@ export class LobbyUiHandler extends UiHandler {
           this.coordinator.startGame();
         }
       },
-      onGameStart: () => {
+      onGameStart: (payload: GameStartPayload) => {
         this.hintText?.setText("游戏开始！");
+        // 激活合作模式 + 启动游戏流程
+        globalScene.ui.setMode(UiMode.MESSAGE);
+        globalScene.phaseManager.pushNew("CoopStartPhase", payload);
       },
       onError: (_code, msg) => {
         this.hintText?.setText(`错误: ${msg}`);
