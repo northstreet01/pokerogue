@@ -62,6 +62,8 @@ import { UnavailableModalUiHandler } from "#ui/unavailable-modal-ui-handler";
 import { executeIf } from "#utils/common";
 import i18next from "i18next";
 import { AdminUiHandler } from "./handlers/admin-ui-handler";
+import { LobbyUiHandler } from "./handlers/lobby-ui-handler";
+import { PvpResultUiHandler } from "./handlers/pvp-result-ui-handler";
 import { RenameRunFormUiHandler } from "./handlers/rename-run-ui-handler";
 
 const transitionModes = [
@@ -182,6 +184,8 @@ export class UI extends Phaser.GameObjects.Container {
       new MysteryEncounterUiHandler(),
       new ChangePasswordFormUiHandler(),
       new AlertModalUiHandler(),
+      new LobbyUiHandler(),
+      new PvpResultUiHandler(),
     ];
   }
 

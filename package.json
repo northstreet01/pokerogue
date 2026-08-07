@@ -56,7 +56,8 @@
     "i18next-korean-postposition-processor": "^1.0.0",
     "jszip": "^3.10.1",
     "phaser": "^3.90.0",
-    "phaser3-rex-plugins": "^1.80.20"
+    "phaser3-rex-plugins": "^1.80.20",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.1",
@@ -66,6 +67,7 @@
     "@types/crypto-js": "^4.2.2",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^24.13.2",
+    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.9",
     "@vitest/expect": "^4.1.9",
     "@vitest/utils": "^4.1.9",
