@@ -1,6 +1,5 @@
 /**
- * 大厅 UI Handler
- * 处理联机房间的界面：玩家列表、就绪状态、模式选择
+ * 大厅 UI Handler - 等待对手、就绪确认
  */
 
 import { globalScene } from "#app/global-scene";
@@ -11,6 +10,7 @@ import { LanManager } from "#app/lan/lan-manager";
 import type { PlayerInfo } from "#app/lan/lan-message";
 import { LobbyCoordinator } from "#app/lan/lobby-phase";
 import { UiHandler } from "./ui-handler";
+import { addWindow } from "#ui/ui-theme";
 import { addTextObject } from "#ui/text";
 
 export class LobbyUiHandler extends UiHandler {
@@ -33,44 +33,45 @@ export class LobbyUiHandler extends UiHandler {
     this.container = globalScene.add.container(0, 0);
     this.container.setVisible(false);
 
-    const centerX = globalScene.scaledCanvas.width / 2;
-    const centerY = globalScene.scaledCanvas.height / 2;
+    const ui = this.getUi();
+    const cw = globalScene.scaledCanvas.width;
+    const ch = globalScene.scaledCanvas.height;
+    const winW = 420;
+    const winH = 340;
+    const winX = (cw - winW) / 2;
+    const winY = (ch - winH) / 2;
 
-    // 标题
-    this.titleText = addTextObject(centerX, centerY - 160, "局域网联机", TextStyle.SUMMARY_HEADER);
-    this.titleText.setOrigin(0.5);
+    const bg = addWindow(winX, winY, winW, winH).setOrigin(0);
+    this.container.add(bg);
+
+    this.titleText = addTextObject(cw / 2, winY + 20, "房间大厅", TextStyle.SUMMARY_HEADER).setOrigin(0.5, 0);
     this.container.add(this.titleText);
 
-    // Host 信息
-    this.hostInfoText = addTextObject(centerX, centerY - 100, "", TextStyle.WINDOW);
-    this.hostInfoText.setOrigin(0.5);
+    this.hostInfoText = addTextObject(cw / 2, winY + 55, "", TextStyle.WINDOW).setOrigin(0.5, 0);
     this.container.add(this.hostInfoText);
 
-    // 玩家列表
-    this.playerListText = addTextObject(centerX, centerY - 20, "", TextStyle.STATS_VALUE);
-    this.playerListText.setOrigin(0.5);
+    this.playerListText = addTextObject(cw / 2, winY + 100, "", TextStyle.STATS_VALUE).setOrigin(0.5, 0);
     this.container.add(this.playerListText);
 
-    // 就绪状态
-    this.readyText = addTextObject(centerX, centerY + 60, "", TextStyle.WINDOW);
-    this.readyText.setOrigin(0.5);
+    this.readyText = addTextObject(cw / 2, winY + 200, "按 Z 准备 / 按 Z 取消", TextStyle.WINDOW).setOrigin(0.5, 0);
     this.container.add(this.readyText);
 
-    // 提示信息
-    this.hintText = addTextObject(centerX, centerY + 140, "", TextStyle.STATS_LABEL);
-    this.hintText.setOrigin(0.5);
+    this.hintText = addTextObject(cw / 2, winY + 250, "", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
     this.container.add(this.hintText);
+
+    const cancelHint = addTextObject(cw / 2, winY + winH - 20, "按 X 取消并返回", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
+    this.container.add(cancelHint);
+
+    ui.add(this.container);
   }
 
   override show(_args: unknown[]): boolean {
     super.show(_args);
-
     this.container?.setVisible(true);
     this.isReady = false;
 
     const lanManager = LanManager.getInstance();
 
-    // 绑定事件
     this.coordinator.bindEvents({
       onOpponentJoined: (info: PlayerInfo) => {
         this.players.push(info);
@@ -82,63 +83,47 @@ export class LobbyUiHandler extends UiHandler {
         this.refreshDisplay();
       },
       onOpponentReady: (ready: boolean) => {
-        const opponent = this.players.find(p => p.playerId !== lanManager.getMyPlayerId());
-        if (opponent) {
-          opponent.ready = ready;
-        }
+        const opp = this.players.find(p => p.playerId !== lanManager.getMyPlayerId());
+        if (opp) { opp.ready = ready; }
         this.refreshDisplay();
-
-        // 双方就绪自动开始（Host 侧）
         if (this.coordinator.checkBothReady(this.isReady, ready) && lanManager.isHost()) {
           this.coordinator.startGame();
         }
       },
       onGameStart: () => {
         this.hintText?.setText("游戏开始！");
-        // TODO: 启动合作模式
-        globalScene.ui.setMode(UiMode.MESSAGE);
       },
-      onError: (_code: string, message: string) => {
-        this.hintText?.setText(`错误: ${message}`);
+      onError: (_code, msg) => {
+        this.hintText?.setText(`错误: ${msg}`);
       },
     });
 
-    // 添加自己到玩家列表
-    this.players = [
-      {
-        playerId: lanManager.getMyPlayerId(),
-        playerName: lanManager.isHost() ? "Host (你)" : "Client (你)",
-        role: lanManager.getRole(),
-        ready: false,
-      },
-    ];
+    this.players = [{
+      playerId: lanManager.getMyPlayerId(),
+      playerName: lanManager.isHost() ? "Host (你)" : "Client (你)",
+      role: lanManager.getRole(),
+      ready: false,
+    }];
 
     this.refreshDisplay();
 
-    // Host 信息
     if (lanManager.isHost()) {
-      this.hintText?.setText("等待对手连接... (请告知对方你的 IP 地址)");
+      this.hostInfoText?.setText("等待对手连接...");
+      this.hintText?.setText("将你的 IP 地址告诉对方");
     } else {
-      this.hintText?.setText("已连接到 Host，等待开始...");
+      this.hostInfoText?.setText("已连接到 Host");
+      this.hintText?.setText("等待 Host 启动游戏");
     }
 
     return true;
   }
 
   override processInput(button: Button): boolean {
-    if (!this.active) {
-      return false;
-    }
-
+    if (!this.active) { return false; }
     switch (button) {
-      case Button.SUBMIT:
-        this.toggleReady();
-        return true;
-      case Button.CANCEL:
-        this.leaveLobby();
-        return true;
-      default:
-        return false;
+      case Button.SUBMIT: this.toggleReady(); return true;
+      case Button.CANCEL: this.leaveLobby(); return true;
+      default: return false;
     }
   }
 
@@ -166,7 +151,6 @@ export class LobbyUiHandler extends UiHandler {
       return `${p.playerName}  ${status}`;
     });
     this.playerListText?.setText(lines.join("\n"));
-
-    this.readyText?.setText(this.isReady ? "已就绪 (按确认键取消)" : "未就绪 (按确认键准备)");
+    this.readyText?.setText(this.isReady ? "已就绪 (按 Z 取消)" : "未就绪 (按 Z 准备)");
   }
 }

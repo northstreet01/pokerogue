@@ -188,6 +188,14 @@ export class TitlePhase extends Phase {
         },
         keepOpen: true,
       },
+      {
+        label: "局域网联机",
+        handler: () => {
+          globalScene.ui.setOverlayMode(UiMode.LAN_MENU);
+          return true;
+        },
+        keepOpen: true,
+      },
     );
     const config: OptionSelectConfig = {
       options,
