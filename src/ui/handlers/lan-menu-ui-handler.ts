@@ -31,8 +31,9 @@ export class LanMenuUiHandler extends UiHandler {
     const ch = globalScene.scaledCanvas.height;
     const winW = 320;
     const winH = 240;
+    const offY = -ch;
     const winX = (cw - winW) / 2;
-    const winY = (ch - winH) / 2;
+    const winY = offY + (ch - winH) / 2;
 
     const bg = addWindow(winX, winY, winW, winH).setOrigin(0);
     this.container.add(bg);
@@ -81,7 +82,7 @@ export class LanMenuUiHandler extends UiHandler {
 
   private updateCursor(): void {
     if (this.cursorObj) {
-      const winY = (globalScene.scaledCanvas.height - 240) / 2;
+      const winY = -globalScene.scaledCanvas.height + (globalScene.scaledCanvas.height - 240) / 2;
       this.cursorObj.setY(winY + 65 + this.menuCursor * 40);
     }
   }

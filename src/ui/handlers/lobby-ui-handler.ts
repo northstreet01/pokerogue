@@ -1,5 +1,5 @@
 /**
- * 大厅 UI Handler - 等待对手、就绪确认
+ * 大厅 UI Handler - 等待对手、就绪确认、房间信息
  */
 
 import { globalScene } from "#app/global-scene";
@@ -10,7 +10,6 @@ import { LanManager } from "#app/lan/lan-manager";
 import type { PlayerInfo } from "#app/lan/lan-message";
 import { LobbyCoordinator } from "#app/lan/lobby-phase";
 import type { GameStartPayload } from "#app/lan/lan-message";
-import { CoopManager } from "#app/lan/coop-manager";
 import { UiHandler } from "./ui-handler";
 import { addWindow } from "#ui/ui-theme";
 import { addTextObject } from "#ui/text";
@@ -35,13 +34,14 @@ export class LobbyUiHandler extends UiHandler {
     this.container = globalScene.add.container(0, 0);
     this.container.setVisible(false);
 
-    const ui = this.getUi();
     const cw = globalScene.scaledCanvas.width;
     const ch = globalScene.scaledCanvas.height;
     const winW = 420;
     const winH = 340;
+    // UI 容器 y 偏移 = scaledCanvas.height，居中需要减去
+    const offY = -ch;
     const winX = (cw - winW) / 2;
-    const winY = (ch - winH) / 2;
+    const winY = offY + (ch - winH) / 2;
 
     const bg = addWindow(winX, winY, winW, winH).setOrigin(0);
     this.container.add(bg);
@@ -52,19 +52,19 @@ export class LobbyUiHandler extends UiHandler {
     this.hostInfoText = addTextObject(cw / 2, winY + 55, "", TextStyle.WINDOW).setOrigin(0.5, 0);
     this.container.add(this.hostInfoText);
 
-    this.playerListText = addTextObject(cw / 2, winY + 100, "", TextStyle.STATS_VALUE).setOrigin(0.5, 0);
+    this.playerListText = addTextObject(cw / 2, winY + 90, "", TextStyle.STATS_VALUE).setOrigin(0.5, 0);
     this.container.add(this.playerListText);
 
-    this.readyText = addTextObject(cw / 2, winY + 200, "按 Z 准备 / 按 Z 取消", TextStyle.WINDOW).setOrigin(0.5, 0);
+    this.readyText = addTextObject(cw / 2, winY + 190, "按 Z 准备 / 按 Z 取消", TextStyle.WINDOW).setOrigin(0.5, 0);
     this.container.add(this.readyText);
 
-    this.hintText = addTextObject(cw / 2, winY + 250, "", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
+    this.hintText = addTextObject(cw / 2, winY + 240, "", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
     this.container.add(this.hintText);
 
     const cancelHint = addTextObject(cw / 2, winY + winH - 20, "按 X 取消并返回", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
     this.container.add(cancelHint);
 
-    ui.add(this.container);
+    this.getUi().add(this.container);
   }
 
   override show(_args: unknown[]): boolean {
@@ -94,7 +94,6 @@ export class LobbyUiHandler extends UiHandler {
       },
       onGameStart: (payload: GameStartPayload) => {
         this.hintText?.setText("游戏开始！");
-        // 激活合作模式 + 启动游戏流程
         globalScene.ui.setMode(UiMode.MESSAGE);
         globalScene.phaseManager.pushNew("CoopStartPhase", payload);
       },

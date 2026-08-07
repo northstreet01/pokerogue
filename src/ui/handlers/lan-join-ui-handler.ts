@@ -35,8 +35,9 @@ export class LanJoinUiHandler extends UiHandler {
     const ch = globalScene.scaledCanvas.height;
     const winW = 420;
     const winH = 280;
+    const offY = -ch;
     const winX = (cw - winW) / 2;
-    const winY = (ch - winH) / 2;
+    const winY = offY + (ch - winH) / 2;
 
     // 窗口背景
     const bg = addWindow(winX, winY, winW, winH).setOrigin(0);
