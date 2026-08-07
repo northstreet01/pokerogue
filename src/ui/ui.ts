@@ -62,6 +62,8 @@ import { UnavailableModalUiHandler } from "#ui/unavailable-modal-ui-handler";
 import { executeIf } from "#utils/common";
 import i18next from "i18next";
 import { AdminUiHandler } from "./handlers/admin-ui-handler";
+import { LanJoinUiHandler } from "./handlers/lan-join-ui-handler";
+import { LanMenuUiHandler } from "./handlers/lan-menu-ui-handler";
 import { LobbyUiHandler } from "./handlers/lobby-ui-handler";
 import { PvpResultUiHandler } from "./handlers/pvp-result-ui-handler";
 import { RenameRunFormUiHandler } from "./handlers/rename-run-ui-handler";
@@ -110,6 +112,10 @@ const noTransitionModes = [
   UiMode.RUN_INFO,
   UiMode.CHANGE_PASSWORD_FORM,
   UiMode.ALERT_MODAL,
+  UiMode.LAN_MENU,
+  UiMode.LAN_JOIN,
+  UiMode.LOBBY,
+  UiMode.PVP_RESULT,
 ];
 
 // biome-ignore lint/style/useNamingConvention: a unique case (only 2 letters)
@@ -184,6 +190,8 @@ export class UI extends Phaser.GameObjects.Container {
       new MysteryEncounterUiHandler(),
       new ChangePasswordFormUiHandler(),
       new AlertModalUiHandler(),
+      new LanMenuUiHandler(),
+      new LanJoinUiHandler(),
       new LobbyUiHandler(),
       new PvpResultUiHandler(),
     ];

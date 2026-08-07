@@ -609,7 +609,7 @@ export class MenuUiHandler extends MessageUiHandler {
           break;
         case MenuOptions.LAN_MULTIPLAYER:
           ui.revertMode();
-          ui.setOverlayMode(UiMode.LOBBY);
+          ui.setOverlayMode(UiMode.LAN_MENU);
           success = true;
           break;
         case MenuOptions.MANAGE_DATA:
