@@ -16,16 +16,8 @@ const wss = new WebSocketServer({ port: PORT });
 console.log(`[LAN Server] 启动成功，监听端口 ${PORT}`);
 console.log(`[LAN Server] 最大玩家数: ${MAX_PLAYERS}`);
 
-/** 连接的客户端 */
-interface Client {
-  ws: WebSocket;
-  id: string;
-  name: string;
-  ready: boolean;
-  connectedAt: number;
-}
-
-const clients = new Map<WebSocket, Client>();
+/** 客户端映射: ws → client data */
+const clients = new Map();
 let nextClientId = 1;
 
 wss.on("connection", (ws) => {
@@ -45,7 +37,7 @@ wss.on("connection", (ws) => {
 
   const clientId = `player_${nextClientId++}`;
 
-  const client: Client = {
+  const client = {
     ws,
     id: clientId,
     name: "",
@@ -129,8 +121,8 @@ wss.on("connection", (ws) => {
 /**
  * 转发消息给其他客户端
  */
-function relayMessage(from: WebSocket, raw: string): void {
-  for (const [ws, client] of clients) {
+function relayMessage(from, raw) {
+  for (const [ws] of clients) {
     if (ws !== from && ws.readyState === ws.OPEN) {
       ws.send(raw);
     }
@@ -140,7 +132,7 @@ function relayMessage(from: WebSocket, raw: string): void {
 /**
  * 广播消息给指定客户端以外的所有人
  */
-function broadcast(exclude: WebSocket | null, msg: unknown): void {
+function broadcast(exclude, msg) {
   const raw = JSON.stringify(msg);
   for (const [ws] of clients) {
     if (ws !== exclude && ws.readyState === ws.OPEN) {
@@ -152,7 +144,7 @@ function broadcast(exclude: WebSocket | null, msg: unknown): void {
 /**
  * 获取 Host 玩家的名称
  */
-function getHostName(): string {
+function getHostName() {
   for (const [, client] of clients) {
     if (client.id === "player_1") {
       return client.name || "Host";
