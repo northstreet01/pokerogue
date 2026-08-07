@@ -91,6 +91,17 @@ wss.on("connection", (ws) => {
         client.ready = false;
       }
 
+      // 处理心跳：服务器直接回复 ACK，不依赖对方
+      if (msg.type === "HEARTBEAT") {
+        ws.send(JSON.stringify({
+          type: "HEARTBEAT_ACK",
+          payload: {},
+          seq: msg.seq,
+          timestamp: Date.now(),
+        }));
+        return;
+      }
+
       // 转发消息给其他客户端
       relayMessage(ws, raw.toString());
     } catch {
