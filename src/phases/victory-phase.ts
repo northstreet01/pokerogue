@@ -2,6 +2,7 @@ import { timedEventManager } from "#app/global-event-manager";
 import { globalScene } from "#app/global-scene";
 import { modifierTypes } from "#data/data-lists";
 import { BattleType } from "#enums/battle-type";
+import { CoopManager } from "#app/lan/coop-manager";
 import type { BattlerIndex } from "#enums/battler-index";
 import { ClassicFixedBossWaves } from "#enums/fixed-boss-waves";
 import { ModifierTier } from "#enums/modifier-tier";
@@ -124,6 +125,11 @@ export class VictoryPhase extends PokemonPhase {
 
         if (gameMode.hasRandomBiomes || globalScene.isNewBiome()) {
           globalScene.phaseManager.pushNew("SelectBiomePhase");
+        }
+
+        // 合作模式：检查是否需要复活队友
+        if (CoopManager.getInstance().isActive()) {
+          globalScene.phaseManager.pushNew("CoopRevivalPhase");
         }
 
         globalScene.phaseManager.pushNew("NewBattlePhase");

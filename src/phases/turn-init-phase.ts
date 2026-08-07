@@ -2,6 +2,7 @@ import { globalScene } from "#app/global-scene";
 import { BattlerIndex } from "#enums/battler-index";
 import { TurnInitEvent } from "#events/battle-scene";
 import type { PlayerPokemon } from "#field/pokemon";
+import { CoopManager } from "#app/lan/coop-manager";
 import {
   handleMysteryEncounterBattleStartEffects,
   handleMysteryEncounterTurnStartEffects,
@@ -56,6 +57,10 @@ export class TurnInitPhase extends FieldPhase {
       return;
     }
 
+    const coopManager = CoopManager.getInstance();
+    const isCoop = coopManager.isActive();
+    const localRole = isCoop ? coopManager.getLocalRole() : null;
+
     globalScene.getField().forEach((pokemon, i) => {
       if (pokemon?.isActive()) {
         if (pokemon.isPlayer()) {
@@ -65,7 +70,19 @@ export class TurnInitPhase extends FieldPhase {
         pokemon.resetTurnData();
 
         if (pokemon.isPlayer()) {
-          globalScene.phaseManager.pushNew("CommandPhase", i);
+          // 合作模式：远程玩家的宝可梦用 RemotePlayerCommandPhase
+          if (isCoop) {
+            const isRemotePosition =
+              (localRole === "host" && i === BattlerIndex.PLAYER_2)
+              || (localRole === "client" && i === BattlerIndex.PLAYER);
+            if (isRemotePosition) {
+              globalScene.phaseManager.pushNew("RemotePlayerCommandPhase", i);
+            } else {
+              globalScene.phaseManager.pushNew("CommandPhase", i);
+            }
+          } else {
+            globalScene.phaseManager.pushNew("CommandPhase", i);
+          }
         } else {
           globalScene.phaseManager.pushNew("EnemyCommandPhase", i - BattlerIndex.ENEMY);
         }
