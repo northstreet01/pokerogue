@@ -1,11 +1,17 @@
 /**
- * 队伍同步 Phase - 确认双方选完初始宝可梦
+ * 队伍同步 Phase - 交换初始宝可梦数据
  *
- * 独立游戏模型：双方各自拥有独立队伍，不共享宝可梦。
- * 此 Phase 仅确认双方都已选完初始宝可梦，可以开始第一场战斗。
+ * 2v2 合作战斗要求：双方宝可梦同时上场
+ * Field positions:
+ *   [0] PLAYER   = Host 的宝可梦
+ *   [1] PLAYER_2 = Client 的宝可梦
+ *
+ * 双方 party 只包含自己的队伍。但为了让对手宝可梦出现在 field 上，
+ * 需要把对手的初始宝可梦作为 Ghost 副本加入 party 的 slot 1。
  */
 
 import { Phase } from "#app/phase";
+import { globalScene } from "#app/global-scene";
 import { LanManager } from "./lan-manager";
 import { CoopManager } from "./coop-manager";
 
@@ -18,19 +24,56 @@ export class CoopPartySyncPhase extends Phase {
 
     if (coop.isPartySynced()) { this.end(); return; }
 
-    // 发送确认信号（不含队伍数据 — 队伍是独立的）
-    lm.send({ type: "party-sync", party: [], sender: lm.getRole() });
+    // 发送我方队伍摘要
+    const myParty = globalScene.getPlayerParty().map(p => ({
+      speciesId: p.species.speciesId,
+      level: p.level, hp: p.hp,
+      stats: [...p.stats], name: p.getNameToRender(),
+      formIndex: p.formIndex, gender: p.gender, shiny: p.shiny,
+    }));
+    const myFirstSpecies = myParty[0]?.speciesId;
+    lm.send({ type: "party-sync", party: myParty, sender: lm.getRole() });
 
-    // 等待对方确认
-    lm.on("party-sync", (_party: any[], sender?: string) => {
+    // 等待对方队伍（忽略自己发出的回弹）
+    lm.on("party-sync", (partyData: any[], sender?: string) => {
       if (sender === lm.getRole()) return;
+      if (partyData[0]?.speciesId === myFirstSpecies) return;
 
-      console.log("[PARTY_SYNC] 对方已选完初始宝可梦");
+      console.log("[PARTY_SYNC] 收到对手队伍, 添加 ghost 副本到 slot 1");
+
+      const party = globalScene.getPlayerParty();
+      const localRole = lm.getRole();
+
+      for (const pd of partyData) {
+        const species = globalScene.speciesDataRegistry.getSpecies(pd.speciesId);
+        if (!species) continue;
+        const ghost = globalScene.addPlayerPokemon(
+          species, pd.level, 0, pd.formIndex, pd.gender, pd.shiny,
+          0, [15, 15, 15, 15, 15, 15], 0,
+        );
+        ghost.hp = pd.hp;
+      }
+
+      // 重排 party: slot 0 = Host, slot 1 = Client
+      const remoteStartIdx = party.length - partyData.length;
+      if (localRole === "host") {
+        // Host: [host_lead, ..., client_ghosts...] → [host_lead, client_ghost1, ...]
+        const ghosts = party.splice(remoteStartIdx, partyData.length);
+        party.splice(1, 0, ...ghosts);
+      } else {
+        // Client: [client_lead, ..., host_ghosts...] → [host_ghost1, client_lead, ...]
+        const ghosts = party.splice(remoteStartIdx, partyData.length);
+        const myLead = party.shift()!;
+        party.splice(0, 0, ghosts[0]);
+        party.splice(1, 0, myLead);
+        if (ghosts.length > 1) party.push(...ghosts.slice(1));
+      }
+
+      console.log("[PARTY_SYNC] party:", party.map(p => p.getNameToRender()).join(", "));
       coop.setPartySynced();
       this.end();
     });
 
-    // 30s 超时
     setTimeout(() => { this.end(); }, 30000);
   }
 }

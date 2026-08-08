@@ -80,15 +80,15 @@ export class TurnEndPhase extends FieldPhase {
       globalScene.arena.trySetTerrain(TerrainType.NONE);
     }
 
-    // 合作模式：同步敌人 HP —— 交换本回合双方对敌人造成的伤害
+    // 合作模式：同步敌人 HP
     this.syncEnemyDamage();
 
     this.end();
   }
 
   /**
-   * P2P 敌人HP同步：发送本回合本地宝可梦对敌人造成的伤害，
-   * 接收对方宝可梦对敌人造成的伤害，双方保持敌人血量一致。
+   * P2P 敌人HP同步：交换双方宝可梦对敌人造成的本轮伤害，取最低 HP。
+   * 注意：单次监听，收到后立即清理，防止每回合累积。
    */
   private syncEnemyDamage(): void {
     const coop = CoopManager.getInstance();
@@ -97,32 +97,40 @@ export class TurnEndPhase extends FieldPhase {
 
     const field = globalScene.getField();
 
-    // 收集我方宝可梦对敌人造成的伤害（敌方位置 HP 变化）
-    const enemyHp: Array<{ index: number; hp: number; maxHp: number }> = [];
+    // 收集本方看到的敌人 HP
+    const enemyHp: Array<{ index: number; hp: number }> = [];
     for (let i = BattlerIndex.ENEMY; i <= BattlerIndex.ENEMY_2; i++) {
       const enemy = field[i];
-      if (enemy) {
-        enemyHp.push({ index: i, hp: enemy.hp, maxHp: enemy.getMaxHp() });
+      if (enemy?.isActive()) {
+        enemyHp.push({ index: i, hp: enemy.hp });
       }
     }
 
-    // 发送给队友
-    lm.send({ type: "enemy-hp-sync", enemyHp, sender: lm.getRole() });
+    // 一次性监听：收到对方敌人的 HP 后合并（取最低值）
+    let synced = false;
+    const handler = (data: any) => {
+      if (synced || !data || data.sender === lm.getRole()) return;
+      synced = true;
+      clearTimeout(tid);
+      lm.off("enemy-hp-sync");
 
-    // 接收队友的敌人HP
-    lm.on("enemy-hp-sync", (data: any) => {
-      if (!data || data.sender === lm.getRole()) return;
-
-      console.log("[TURN_END] 收到队友敌人HP同步:", JSON.stringify(data.enemyHp));
-
+      console.log("[TURN_END] 合并敌人HP:", JSON.stringify(data.enemyHp));
       for (const eh of data.enemyHp) {
         const enemy = field[eh.index];
         if (enemy) {
-          // 取最低HP（保守策略：谁打的伤害多就用谁的）
           enemy.hp = Math.min(enemy.hp, eh.hp);
           enemy.updateInfo();
         }
       }
-    });
+    };
+    lm.on("enemy-hp-sync", handler);
+
+    // 超时清理（防止 listener 泄漏）
+    const tid = setTimeout(() => {
+      if (!synced) { lm.off("enemy-hp-sync"); }
+    }, 5000);
+
+    // 发送给队友
+    lm.send({ type: "enemy-hp-sync", enemyHp, sender: lm.getRole() });
   }
 }

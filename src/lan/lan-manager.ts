@@ -12,6 +12,7 @@ export class LanManager {
   private _connected = false;
   private _opponentConnected = false;
   private listeners: Record<string, EventHandler[]> = {};
+  private _pendingAction: any[] | null = null;
 
   private constructor() {
     window.lanApi?.onConnected(() => {
@@ -33,6 +34,8 @@ export class LanManager {
       } else if (msg.type === "start") {
         this.emit("game-start", msg.seed);
       } else if (msg.type === "action") {
+        // 缓存 action（防竞态：CoopSyncPhase 监听前就到了）
+        this._pendingAction = msg.commands;
         this.emit("action", msg.commands);
       } else if (msg.type === "faint") {
         this.emit("faint", msg.allFainted);
@@ -82,6 +85,9 @@ export class LanManager {
   sendFaint(allFainted: boolean): void { this.send({ type: "faint", allFainted }); }
   sendPartySync(party: any[]): void { this.send({ type: "party-sync", party }); }
   sendWaveComplete(waveIndex: number): void { this.send({ type: "wave-complete", waveIndex }); }
+
+  /** 获取缓存的对战指令（消费后清除，防竞态） */
+  getPendingAction(): any[] | null { const a = this._pendingAction; this._pendingAction = null; return a; }
 
   // ===== 状态 =====
 
