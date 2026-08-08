@@ -75,6 +75,21 @@ interface TurnSnapshot {
 }
 ```
 
+### Requirement: Ghost 远程玩家渲染（借鉴 Dead Cells "Ghost" 系统）
+系统 SHALL 将对方玩家的宝可梦作为 "Ghost" 渲染在己方战场上。
+
+#### Scenario: Ghost 显示
+- **WHEN** 合作战斗开始
+- **THEN** Host 端显示 Client 宝可梦为只读 Ghost（可见 HP/状态，不可操控），Client 端显示 Host 宝可梦为只读 Ghost
+
+#### Scenario: Ghost HP 同步
+- **WHEN** Host 每回合发送 TurnSnapshot
+- **THEN** Client 端 Ghost 宝可梦的 HP 条、状态异常图标、能力等级直接跟随快照更新
+
+#### Scenario: Ghost 不可操控
+- **WHEN** 玩家选择指令
+- **THEN** CommandPhase 不出现 Ghost 宝可梦的菜单，Ghost 宝可梦不响应本地输入
+
 ### Requirement: Client 动画回放
 系统 SHALL 在 Client 端根据 TurnSnapshot 播放动画。
 
@@ -106,19 +121,23 @@ interface TurnSnapshot {
 - **THEN** 触发 GameOver
 
 ### Requirement: 存档与进度保持
-系统 SHALL 在合作模式下保持玩家的单机存档进度。初始宝可梦解锁、道具、成就等与单机模式共享同一存档数据。合作模式不覆盖或隔离单机存档。
+系统 SHALL 提供两种存档模式：单机存档和合作存档分离。
 
-#### Scenario: 合作模式使用已有存档
+#### Scenario: 合作模式使用单机解锁数据
 - **WHEN** 玩家通过合作模式开始新游戏
-- **THEN** 起始宝可梦选择界面显示该玩家已解锁的所有宝可梦（与单机模式一致）
+- **THEN** 起始宝可梦选择界面显示该玩家已解锁的所有宝可梦（与单机模式共享解锁数据）
 
-#### Scenario: 合作模式进度写入存档
-- **WHEN** 合作模式中击败敌人、获得道具、解锁成就
-- **THEN** Host 端存档正常更新（Host 运行完整游戏引擎），Client 端不写入存档
+#### Scenario: 合作模式独立存档槽（借鉴 Dead Cells "Multiplayer save slots"）
+- **WHEN** 合作模式进行存档
+- **THEN** 使用独立存档槽（`sessionDataCoop_<slot>`），不覆盖单机存档
 
-#### Scenario: Client 解锁保留
-- **WHEN** Client 在合作模式中使用新宝可梦
-- **THEN** Client 的宝可梦图鉴等数据在本次会话中更新（Client 端有本地 party 副本），但存档以 Host 为准
+#### Scenario: 合作进度写入
+- **WHEN** 合作模式中击败敌人、获得道具
+- **THEN** Host 端合作存档正常更新（Host 运行完整游戏引擎），Client 端不写存档（Client 是显示终端）
+
+#### Scenario: 宝可梦图鉴跨模式解锁（借鉴 Dead Cells "AdvancedCoop permanent unlock progression"）
+- **WHEN** 合作模式中使用或捕获新宝可梦
+- **THEN** 图鉴解锁数据写入玩家的永久存档（`data_<username>`），单机模式中也可使用
 
 ### Requirement: 断线与代管（UNO `botTurn` 模式）
 系统 SHALL 在 Client 断线时由 Host 自动代管。
