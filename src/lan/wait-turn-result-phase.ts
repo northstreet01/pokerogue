@@ -1,8 +1,6 @@
 /**
- * WaitTurnResultPhase — Client 端接收 Host 回合结果并播放动画
- *
- * 复用游戏现有 Phase（DamageAnimPhase / MessagePhase）播放回合结算。
- * 不新建 ReplayPhase —— 直接用游戏内建动画。
+ * WaitTurnResultPhase — Client 端接收 Host 回合结果
+ * 直接应用 finalState（不推额外 Phase 防双重扣血）
  */
 
 import { globalScene } from "#app/global-scene";
@@ -11,7 +9,6 @@ import { LanManager } from "./lan-manager";
 import { CoopManager } from "./coop-manager";
 import { Status } from "#data/status-effect";
 import { StatusEffect } from "#enums/status-effect";
-import { HitResult } from "#enums/hit-result";
 import { getPokemonNameWithAffix } from "#app/messages";
 import type { TurnResult } from "./turn-result";
 import i18next from "i18next";
@@ -38,54 +35,65 @@ export class WaitTurnResultPhase extends Phase {
       resolved = true;
       cleanup();
 
-      console.log("[WAIT_RESULT] turn:", result.turn, "events:", result.events.length);
+      console.log("[WAIT_RESULT] turn:", result.turn, "events:", result.events.length,
+        "hp:", result.finalState.map(s => `${s.index}=${s.hp}`).join(","));
 
-      // 1. 为每个 MOVE 事件推技能名消息 + 扣血/回复动画
-      const oldHp = globalScene.getField().map(p => p?.hp ?? 0);
+      const field = globalScene.getField();
 
+      // 1. 显示战斗消息
       for (const evt of result.events) {
         if (evt.type === "MOVE") {
-          const user = globalScene.getField()[evt.user];
+          const user = field[evt.user];
           if (user) {
-            globalScene.phaseManager.pushNew("MessagePhase",
+            globalScene.phaseManager.queueMessage(
               i18next.t("battle:useMove", {
                 pokemonNameWithAffix: getPokemonNameWithAffix(user),
-                moveName: "", // TODO: Client 本地查 move name
-              }));
+                moveName: "",
+              }),
+              500,
+            );
           }
         }
       }
 
-      // 2. 对比 HP 变化 → 推 DamageAnimPhase
-      const field = globalScene.getField();
+      // 2. 直接应用最终状态（不推额外 Phase，避免双重扣血）
       for (const ps of result.finalState) {
         const pokemon = field[ps.index];
         if (!pokemon) continue;
-        const hpDiff = oldHp[ps.index] - ps.hp;
-        if (hpDiff > 0) {
-          // 扣血动画
-          globalScene.phaseManager.pushNew("DamageAnimPhase",
-            ps.index as any, hpDiff, HitResult.EFFECTIVE, false);
-        } else if (hpDiff < 0) {
-          // 回血：用 PokemonHealPhase
-          globalScene.phaseManager.pushNew("PokemonHealPhase",
-            ps.index as any, -hpDiff, null, false, true);
+
+        const oldHp = pokemon.hp;
+        pokemon.hp = Math.max(0, ps.hp);
+
+        // 显示扣血/回血消息
+        const diff = oldHp - ps.hp;
+        if (diff > 0) {
+          globalScene.phaseManager.queueMessage(
+            i18next.t("battle:hitResultEffective", { pokemonName: getPokemonNameWithAffix(pokemon) }),
+            null,
+          );
         }
-        if (ps.fainted && !pokemon.isFainted()) {
-          globalScene.phaseManager.pushNew("MessagePhase",
-            i18next.t("battle:fainted", { pokemonNameWithAffix: getPokemonNameWithAffix(pokemon) }));
-        }
-        // 应用最终状态
-        pokemon.hp = ps.hp;
-        if (ps.status) {
+
+        // 状态同步
+        if (ps.status && !pokemon.status) {
           const effect = StatusEffect[ps.status as keyof typeof StatusEffect];
           if (effect != null) pokemon.status = new Status(effect);
         } else if (!ps.status && pokemon.status) {
           pokemon.status = null;
         }
+
+        // 昏厥
+        if (ps.fainted && !pokemon.isFainted()) {
+          globalScene.phaseManager.queueMessage(
+            i18next.t("battle:fainted", { pokemonNameWithAffix: getPokemonNameWithAffix(pokemon) }),
+            null, true,
+          );
+        }
+
         pokemon.updateInfo();
       }
 
+      // 3. 刷新 UI
+      globalScene.updateGameInfo();
       this.end();
     };
 
