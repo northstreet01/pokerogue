@@ -85,9 +85,9 @@ export class TurnInitPhase extends FieldPhase {
         globalScene.phaseManager.pushNew("RemoteWaitPhase");
         globalScene.phaseManager.pushNew("TurnStartPhase");
       } else {
-        // Client: 不执行 TurnStartPhase，等待 Host 下发 TurnSnapshot
-        console.log("[TURN_INIT] Client: 推 ApplySnapshotPhase (不推 TurnStartPhase)");
-        globalScene.phaseManager.pushNew("ApplySnapshotPhase");
+        // Client: 不执行 TurnStartPhase，等待 Host 下发回合结果（事件流 + 快照）
+        console.log("[TURN_INIT] Client: 推 ClientEventLoopPhase (不推 TurnStartPhase)");
+        globalScene.phaseManager.pushNew("ClientEventLoopPhase");
       }
     } else {
       // 单机模式：直接开始回合

@@ -117,6 +117,11 @@ import { CoopRevivalPhase } from "#app/lan/coop-revival-phase";
 import { CoopStartPhase } from "#app/lan/coop-start-phase";
 import { RemoteWaitPhase } from "#app/lan/remote-wait-phase";
 import { ApplySnapshotPhase } from "#app/lan/apply-snapshot-phase";
+import { ClientEventLoopPhase } from "#app/lan/client-event-loop-phase";
+import { ReplayMessagePhase } from "#app/lan/replay-message-phase";
+import { ReplayMovePhase } from "#app/lan/replay-move-phase";
+import { ReplayDamagePhase } from "#app/lan/replay-damage-phase";
+import { ReplayFaintPhase } from "#app/lan/replay-faint-phase";
 import type { PhaseConditionFunc, PhaseMap, PhaseString } from "#types/phase-types";
 import type { NonEmptyTuple } from "type-fest";
 
@@ -145,6 +150,11 @@ const PHASES = Object.freeze({
   CoopStartPhase,
   RemoteWaitPhase,
   ApplySnapshotPhase,
+  ClientEventLoopPhase,
+  ReplayMessagePhase,
+  ReplayMovePhase,
+  ReplayDamagePhase,
+  ReplayFaintPhase,
   DamageAnimPhase,
   DynamicPhaseMarker,
   EggHatchPhase,

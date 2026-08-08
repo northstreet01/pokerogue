@@ -1,5 +1,7 @@
 import { globalScene } from "#app/global-scene";
 import { settings } from "#app/global-settings-manager";
+import { CoopManager } from "#app/lan/coop-manager";
+import { LanManager } from "#app/lan/lan-manager";
 import { Phase } from "#app/phase";
 
 export class MessagePhase extends Phase {
@@ -84,6 +86,11 @@ export class MessagePhase extends Phase {
         this.prompt,
         this.promptDelay,
       );
+    }
+
+    // 合作模式 Host：记录战斗消息事件（供 Client 重放）
+    if (CoopManager.getInstance().isActive() && LanManager.getInstance().isHost()) {
+      LanManager.getInstance().logBattleEvent({ type: "MESSAGE", text: this.text });
     }
   }
 }

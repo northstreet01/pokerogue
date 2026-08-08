@@ -95,8 +95,13 @@ export class TurnEndPhase extends FieldPhase {
     const lm = LanManager.getInstance();
     if (!coop.isActive() || !lm.isHost()) return;
 
-    console.log("[TURN_END] Host 发送 TurnSnapshot, turn:", globalScene.currentBattle.turn);
+    // 清空事件日志 + 添加 TURN_END 标记
+    const events = lm.flushBattleEvents();
+    events.push({ type: "TURN_END", turn: globalScene.currentBattle.turn });
 
+    console.log("[TURN_END] Host 发送回合结果, events:", events.length, "turn:", globalScene.currentBattle.turn);
+
+    // 构建快照
     const field = globalScene.getField();
     const snapshot: TurnSnapshot = {
       turn: globalScene.currentBattle.turn,
@@ -112,6 +117,7 @@ export class TurnEndPhase extends FieldPhase {
       })),
     };
 
-    lm.sendSnapshot(snapshot);
+    // 发送事件流 + 快照给 Client
+    lm.sendTurnResult(events, snapshot);
   }
 }

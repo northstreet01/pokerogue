@@ -13,6 +13,8 @@ export class LanManager {
   private _opponentConnected = false;
   private listeners: Record<string, EventHandler[]> = {};
   private _lastSnapshot: any = null;
+  private _lastTurnEvents: any[] | null = null;
+  private _battleEventLog: any[] = [];
 
   private constructor() {
     window.lanApi?.onConnected(() => {
@@ -43,6 +45,10 @@ export class LanManager {
         this.emit("snapshot", msg.snapshot);
       } else if (msg.type === "party-sync") {
         this.emit("party-sync", msg.party, msg.sender);
+      } else if (msg.type === "turn-result") {
+        this._lastSnapshot = msg.snapshot;
+        this._lastTurnEvents = msg.events;
+        this.emit("turn-result", msg.events, msg.snapshot);
       }
     });
   }
@@ -86,6 +92,35 @@ export class LanManager {
 
   /** Client 端获取最后收到的快照（消费后清除） */
   getLastSnapshot(): any { const s = this._lastSnapshot; this._lastSnapshot = null; return s; }
+
+  /** Client 端获取最后收到的回合事件+快照（消费后清除，防竞态） */
+  getLastTurnResult(): { events: any[]; snapshot: any } | null {
+    if (!this._lastTurnEvents || !this._lastSnapshot) return null;
+    const r = { events: this._lastTurnEvents, snapshot: this._lastSnapshot };
+    this._lastTurnEvents = null;
+    this._lastSnapshot = null;
+    return r;
+  }
+
+  // ===== 战斗事件日志 (Host 收集 → Client 重放) =====
+
+  /** Host 在回合执行期间记录动画事件 */
+  logBattleEvent(event: any): void {
+    if (!this.isHost()) return;
+    this._battleEventLog.push(event);
+  }
+
+  /** Host 获取并清空事件日志 */
+  flushBattleEvents(): any[] {
+    const events = [...this._battleEventLog];
+    this._battleEventLog = [];
+    return events;
+  }
+
+  /** Host 发送回合结果（事件流 + 最终快照） */
+  sendTurnResult(events: any[], snapshot: any): void {
+    this.send({ type: "turn-result", events, snapshot });
+  }
 
   // ===== 状态 =====
 
