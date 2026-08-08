@@ -32,6 +32,8 @@ export class TitlePhase extends Phase {
   private loaded = false;
   // TODO: Make `end` take a `GameModes` as a parameter rather than storing it on the class itself
   public gameMode: GameModes;
+  /** 跳过游戏初始化，仅结束 Phase（局域网联机用） */
+  public skipGameStart = false;
 
   async start(): Promise<void> {
     super.start();
@@ -191,7 +193,7 @@ export class TitlePhase extends Phase {
       {
         label: "局域网联机",
         handler: () => {
-          // 结束 TitlePhase，让后续 Phase 能正常运行
+          this.skipGameStart = true;
           this.end();
           globalScene.ui.setMode(UiMode.LAN_MENU);
           return true;
@@ -365,6 +367,10 @@ export class TitlePhase extends Phase {
 
   // TODO: Refactor this
   end(): void {
+    if (this.skipGameStart) {
+      super.end();
+      return;
+    }
     if (!this.loaded && !globalScene.gameMode.isDaily) {
       globalScene.gameMode = getGameMode(this.gameMode);
       if (this.gameMode === GameModes.CHALLENGE) {
