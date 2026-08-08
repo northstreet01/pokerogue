@@ -99,6 +99,10 @@ export class LanManager {
     return this.role;
   }
 
+  isOpponentConnected(): boolean {
+    return this.opponentId !== "";
+  }
+
   getConnectionState(): ConnectionState {
     return this.client.state;
   }

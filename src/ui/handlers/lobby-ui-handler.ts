@@ -70,7 +70,11 @@ export class LobbyUiHandler extends UiHandler {
     const lanManager = LanManager.getInstance();
 
     this.coordinator.bindEvents({
-      onOpponentJoined: () => {
+      onOpponentJoined: (info) => {
+        // 防止重复添加
+        if (!this.players.find(p => p.playerId === info.playerId)) {
+          this.players.push(info);
+        }
         this.opponentConnected = true;
         this.refreshDisplay();
       },
@@ -93,6 +97,17 @@ export class LobbyUiHandler extends UiHandler {
       role: lanManager.getRole(),
       ready: false,
     }];
+
+    // 检查对方是否已经连接（可能事件在 show 之前就到了）
+    if (lanManager.isOpponentConnected()) {
+      this.opponentConnected = true;
+      this.players.push({
+        playerId: "opponent",
+        playerName: lanManager.getOpponentName() || "对手",
+        role: lanManager.isHost() ? "client" : "host",
+        ready: false,
+      });
+    }
 
     this.refreshDisplay();
 
