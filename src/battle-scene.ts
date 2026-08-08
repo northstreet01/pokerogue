@@ -1484,6 +1484,7 @@ export class BattleScene extends SceneBase {
   private checkIsDouble({ double: forcedDouble, battleType, waveIndex, trainer }: NewBattleConstructedProps): boolean {
     // 合作模式：始终双打（双方宝可梦同时上场）
     if (CoopManager.getInstance().isActive()) {
+      console.log("[BATTLE] checkIsDouble: coop active → forcing double battle");
       return true;
     }
 

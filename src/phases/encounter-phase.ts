@@ -577,17 +577,24 @@ export class EncounterPhase extends BattlePhase {
 
     if (!this.loaded) {
       const availablePartyMembers = globalScene.getPokemonAllowedInBattle();
+      console.log("[ENCOUNTER] party size:", globalScene.getPlayerParty().length,
+        "allowed:", availablePartyMembers.length,
+        "double:", globalScene.currentBattle.double,
+        "party:", globalScene.getPlayerParty().map(p => p.getNameToRender()).join(", "));
 
       if (!availablePartyMembers[0].isOnField()) {
         globalScene.phaseManager.pushNew("SummonPhase", 0);
       }
 
       if (globalScene.currentBattle.double) {
+        console.log("[ENCOUNTER] double battle, summoning slot 0 and 1");
         if (availablePartyMembers.length > 1) {
           globalScene.phaseManager.pushNew("ToggleDoublePositionPhase", true);
           if (!availablePartyMembers[1].isOnField()) {
             globalScene.phaseManager.pushNew("SummonPhase", 1);
           }
+        } else {
+          console.log("[ENCOUNTER] WARNING: double battle but only", availablePartyMembers.length, "available!");
         }
       } else {
         if (availablePartyMembers.length > 1 && availablePartyMembers[1].isOnField()) {
