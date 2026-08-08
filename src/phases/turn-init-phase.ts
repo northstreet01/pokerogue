@@ -49,6 +49,14 @@ export class TurnInitPhase extends FieldPhase {
 
     console.log("[TURN_INIT] isCoop:", isCoop, "localRole:", localRole, "field size:", globalScene.getField().filter(p => p?.isActive()).length);
 
+    // 清除上一回合的残留指令（防止重复发送）
+    if (isCoop) {
+      for (let i = 0; i < 4; i++) {
+        delete globalScene.currentBattle.turnCommands[i];
+        delete globalScene.currentBattle.preTurnCommands[i];
+      }
+    }
+
     globalScene.getField().forEach((pokemon, i) => {
       if (pokemon?.isActive()) {
         if (pokemon.isPlayer()) {

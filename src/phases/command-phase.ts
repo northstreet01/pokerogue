@@ -12,6 +12,7 @@ import { AbilityId } from "#enums/ability-id";
 import { ArenaTagSide } from "#enums/arena-tag-side";
 import { ArenaTagType } from "#enums/arena-tag-type";
 import { BattleType } from "#enums/battle-type";
+import { BattlerIndex } from "#enums/battler-index";
 import { BattlerTagType } from "#enums/battler-tag-type";
 import { BiomeId } from "#enums/biome-id";
 import { Command } from "#enums/command";
@@ -701,27 +702,19 @@ export class CommandPhase extends FieldPhase {
     const lm = LanManager.getInstance();
     if (!coop.isActive() || lm.isHost()) return;
 
-    const battle = globalScene.currentBattle;
-    const localCmds: any[] = [];
-    const field = globalScene.getField();
+    // Client 只发送己方宝可梦的指令 (PLAYER_2 = index 1)
+    // 不遍历全部 field — 避免把 Host ghost 的残留指令也发出去
+    const myIndex = BattlerIndex.PLAYER_2;
+    const cmd = globalScene.currentBattle.turnCommands[myIndex];
+    if (!cmd) return;
 
-    for (let i = 0; i < field.length; i++) {
-      const pokemon = field[i];
-      if (pokemon?.isActive() && pokemon.isPlayer() && battle.turnCommands[i]) {
-        const cmd = battle.turnCommands[i];
-        localCmds.push({
-          index: i,
-          command: cmd.command,
-          move: cmd.move
-            ? { move: cmd.move.move, targets: cmd.move.targets }
-            : null,
-          skip: cmd.skip,
-        });
-      }
-    }
-
-    if (localCmds.length > 0) {
-      lm.sendAction(localCmds);
-    }
+    lm.sendAction([{
+      index: myIndex,
+      command: cmd.command,
+      move: cmd.move
+        ? { move: cmd.move.move, targets: cmd.move.targets }
+        : null,
+      skip: cmd.skip,
+    }]);
   }
 }
