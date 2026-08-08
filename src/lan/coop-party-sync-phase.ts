@@ -34,7 +34,7 @@ export class CoopPartySyncPhase extends Phase {
 
     let resolved = false;
 
-    // 1. 先注册监听（防竞态）
+    // 1. 先注册监听（防竞态 — 必须在 send 之前！）
     lm.on("party-sync", (partyData: any[], sender?: string) => {
       if (sender === lm.getRole()) {
         console.log("[PARTY_SYNC] 忽略自己发出的回弹, sender:", sender);
@@ -53,7 +53,8 @@ export class CoopPartySyncPhase extends Phase {
       const party = globalScene.getPlayerParty();
       const localRole = lm.getRole();
 
-      // 添加 ghost 副本
+      // 添加 ghost 副本（addPlayerPokemon 不会自动加入 party，需手动 push）
+      const ghostStartIdx = party.length;
       for (const pd of partyData) {
         const species = speciesDataRegistry.getSpecies(pd.speciesId);
         if (!species) {
@@ -65,18 +66,18 @@ export class CoopPartySyncPhase extends Phase {
           0, [15, 15, 15, 15, 15, 15], 0,
         );
         ghost.hp = pd.hp;
+        party.push(ghost);  // ← 关键：必须手动 push！
         console.log("[PARTY_SYNC] 添加 ghost:", pd.name);
       }
 
       // 重排 party: slot 0 = Host, slot 1 = Client
-      const remoteStartIdx = party.length - partyData.length;
-      console.log("[PARTY_SYNC] 重排前 party:", party.map(p => p.getNameToRender()).join(", "), "remoteStart:", remoteStartIdx);
+      console.log("[PARTY_SYNC] 重排前 party:", party.map(p => p.getNameToRender()).join(", "), "ghostStart:", ghostStartIdx);
 
       if (localRole === "host") {
-        const ghosts = party.splice(remoteStartIdx, partyData.length);
+        const ghosts = party.splice(ghostStartIdx, partyData.length);
         party.splice(1, 0, ...ghosts);
       } else {
-        const ghosts = party.splice(remoteStartIdx, partyData.length);
+        const ghosts = party.splice(ghostStartIdx, partyData.length);
         const myLead = party.shift()!;
         party.splice(0, 0, ghosts[0]);
         party.splice(1, 0, myLead);
@@ -84,22 +85,13 @@ export class CoopPartySyncPhase extends Phase {
       }
 
       console.log("[PARTY_SYNC] 重排后 party:", party.map(p => p.getNameToRender()).join(", "));
-      console.log("[PARTY_SYNC] party size:", party.length, "slot0:", party[0]?.getNameToRender(), "slot1:", party[1]?.getNameToRender());
+      console.log("[PARTY_SYNC] slot0:", party[0]?.getNameToRender(), "slot1:", party[1]?.getNameToRender());
 
       coop.setPartySynced();
       this.end();
     });
 
-    // 2. 检查缓存（防竞态：消息在注册前就到了）
-    const pending = lm.getPendingPartySync?.();
-    if (pending && !resolved) {
-      console.log("[PARTY_SYNC] 使用缓存的对手数据");
-      // 直接触发 handler 逻辑（pending 是 { party, sender }）
-      const listeners = (lm as any).listeners?.["party-sync"];
-      // 稍后通过正常事件触发
-    }
-
-    // 3. 发送我方队伍
+    // 2. 发送我方队伍（在监听注册之后！）
     lm.send({ type: "party-sync", party: myParty, sender: lm.getRole() });
     console.log("[PARTY_SYNC] 已发送我方队伍");
 
