@@ -1,13 +1,14 @@
 /**
- * SendTurnResultPhase — Host 端将回合结算结果发送给 Client
+ * SendTurnResultPhase — Host 端打包回合事件+最终状态发送给 Client
  */
 
 import { globalScene } from "#app/global-scene";
 import { Phase } from "#app/phase";
 import { LanManager } from "./lan-manager";
 import { CoopManager } from "./coop-manager";
-import type { TurnResult, PokeState } from "./turn-result";
+import type { TurnResult, TurnEvent, PokeState } from "./turn-result";
 import { StatusEffect } from "#enums/status-effect";
+import { BattlerIndex } from "#enums/battler-index";
 
 export class SendTurnResultPhase extends Phase {
   public readonly phaseName = "SendTurnResultPhase";
@@ -18,8 +19,28 @@ export class SendTurnResultPhase extends Phase {
     if (!coop.isActive() || !lm.isHost()) { this.end(); return; }
 
     const field = globalScene.getField();
-    const turn = globalScene.currentBattle.turn;
+    const battle = globalScene.currentBattle;
+    const turn = battle.turn;
 
+    // 收集事件：谁用了什么技能
+    const events: TurnEvent[] = [];
+    for (let i = 0; i <= BattlerIndex.ENEMY_2; i++) {
+      const cmd = battle.turnCommands[i];
+      if (cmd && cmd.command === 0 && cmd.move) { // FIGHT
+        const user = field[i];
+        if (user) {
+          events.push({
+            type: "MOVE",
+            user: i,
+            moveId: cmd.move.move,
+            moveName: "", // Client 本地查
+            targets: cmd.targets ?? cmd.move.targets ?? [],
+          });
+        }
+      }
+    }
+
+    // 最终状态
     const finalState: PokeState[] = field.map((p, i) => ({
       index: i,
       hp: p?.hp ?? 0,
@@ -28,9 +49,9 @@ export class SendTurnResultPhase extends Phase {
       fainted: p?.isFainted?.() ?? false,
     }));
 
-    const result: TurnResult = { turn, events: [], finalState };
+    const result: TurnResult = { turn, events, finalState };
     lm.send({ type: "turn-result", result });
-    console.log("[SEND_RESULT] 回合结果已发送, turn:", turn);
+    console.log("[SEND_RESULT] turn:", turn, "events:", events.length, "finalState:", finalState.map(s => `${s.index}:hp=${s.hp}/${s.maxHp}`).join(", "));
 
     this.end();
   }
