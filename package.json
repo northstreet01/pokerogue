@@ -60,6 +60,8 @@
     "jszip": "^3.10.1",
     "phaser": "^3.90.0",
     "phaser3-rex-plugins": "^1.80.20",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "ws": "^8.21.3"
   },
   "devDependencies": {

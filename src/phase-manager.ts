@@ -114,9 +114,6 @@ import { WeatherEffectPhase } from "#phases/weather-effect-phase";
 import { CoopPartySyncPhase } from "#app/lan/coop-party-sync-phase";
 import { CoopRevivalPhase } from "#app/lan/coop-revival-phase";
 import { CoopStartPhase } from "#app/lan/coop-start-phase";
-import { CoopSyncPhase } from "#app/lan/coop-sync-phase";
-import { CoopTurnInitPhase } from "#app/lan/coop-turn-init-phase";
-import { RemotePlayerCommandPhase } from "#app/lan/remote-player-command-phase";
 import type { PhaseConditionFunc, PhaseMap, PhaseString } from "#types/phase-types";
 import type { NonEmptyTuple } from "type-fest";
 
@@ -142,8 +139,6 @@ const PHASES = Object.freeze({
   CoopPartySyncPhase,
   CoopRevivalPhase,
   CoopStartPhase,
-  CoopSyncPhase,
-  CoopTurnInitPhase,
   DamageAnimPhase,
   DynamicPhaseMarker,
   EggHatchPhase,
@@ -197,7 +192,6 @@ const PHASES = Object.freeze({
   PostSummonPhase,
   PostTurnStatusEffectPhase,
   QuietFormChangePhase,
-  RemotePlayerCommandPhase,
   ResetStatusPhase,
   ReturnPhase,
   RevivalBlessingPhase,

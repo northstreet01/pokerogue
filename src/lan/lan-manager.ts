@@ -1,54 +1,34 @@
 /**
- * TCP 联机管理器（Electron IPC 桥接）
- *
- * 使用 window.lanApi 与 Electron 主进程通信，
- * 主进程通过 TCP 与对方直连。
+ * Socket.io 联机管理器
+ * P2P: Host 运行 Socket.io 服务端，Client 直连
  */
 
 type PlayerRole = "host" | "client";
-
-interface LanApi {
-  host(): Promise<{ port: number }>;
-  join(host: string, port: number): Promise<{ success: boolean }>;
-  send(msg: unknown): void;
-  leave(): void;
-  onMessage(cb: (msg: any) => void): void;
-  onConnected(cb: () => void): void;
-  onDisconnected(cb: () => void): void;
-}
-
-declare global {
-  interface Window { lanApi?: LanApi; }
-}
+type EventHandler = (...args: any[]) => void;
 
 export class LanManager {
   private static instance: LanManager | null = null;
-
   private role: PlayerRole = "host";
   private _connected = false;
   private _opponentConnected = false;
-  private listeners: Record<string, Array<(...args: any[]) => void>> = {};
+  private listeners: Record<string, EventHandler[]> = {};
 
   private constructor() {
-    const api = window.lanApi;
-    if (!api) { return; }
-    api.onConnected(() => { this._connected = true; this.emit("connected"); });
-    api.onDisconnected(() => { this._connected = false; this._opponentConnected = false; this.emit("disconnected"); });
-    api.onMessage((msg: any) => {
-      console.log("[LanManager] 收到消息:", msg.type, msg);
+    window.lanApi?.onConnected(() => {
+      this._connected = true;
+      this.emit("connected");
+    });
+    window.lanApi?.onDisconnected(() => {
+      this._opponentConnected = false;
+      this.emit("disconnected");
+    });
+    window.lanApi?.onMessage((msg: any) => {
+      this.emit("message", msg);
+      // 根据消息类型触发特定事件
       if (msg.type === "hello") {
-        const wasConnected = this._opponentConnected;
         this._opponentConnected = true;
-        console.log("[LanManager] 对手已连接, 触发 opponent-joined");
-        this.emit("opponent-joined", msg.name);
-        // 只在第一次收到时回复，防止死循环
-        if (!wasConnected) {
-          this.send({ type: "hello", name: this.role === "host" ? "Host" : "Client" });
-        }
-      } else if (msg.type === "ready") {
-        this.emit("opponent-ready");
+        this.emit("opponent-joined");
       } else if (msg.type === "start") {
-        console.log("[LanManager] 收到游戏开始, seed:", msg.seed);
         this.emit("game-start", msg.seed);
       } else if (msg.type === "action") {
         this.emit("action", msg.commands);
@@ -70,44 +50,28 @@ export class LanManager {
   async createRoom(): Promise<boolean> {
     this.role = "host";
     await window.lanApi?.host();
+    this.send({ type: "hello" });
     return true;
   }
 
   async joinRoom(host: string, port = 9090): Promise<boolean> {
     this.role = "client";
     await window.lanApi?.join(host, port);
-    // 发送打招呼
-    this.send({ type: "hello", name: "Client" });
+    this.send({ type: "hello" });
     return true;
   }
 
   leaveRoom(): void {
     window.lanApi?.leave();
-    this._connected = false;
-    this._opponentConnected = false;
   }
 
   // ===== 发送 =====
 
-  send(msg: unknown): void {
-    window.lanApi?.send(msg);
-  }
-
-  sendReady(): void {
-    this.send({ type: "ready" });
-  }
-
-  sendStart(seed: string): void {
-    this.send({ type: "start", seed });
-  }
-
-  sendAction(commands: unknown[]): void {
-    this.send({ type: "action", commands });
-  }
-
-  sendFaint(allFainted: boolean): void {
-    this.send({ type: "faint", allFainted });
-  }
+  send(msg: any): void { window.lanApi?.send(msg); }
+  sendStart(seed: string): void { this.send({ type: "start", seed }); }
+  sendAction(commands: any[]): void { this.send({ type: "action", commands }); }
+  sendFaint(allFainted: boolean): void { this.send({ type: "faint", allFainted }); }
+  sendPartySync(party: any[]): void { this.send({ type: "party-sync", party }); }
 
   // ===== 状态 =====
 
@@ -118,9 +82,8 @@ export class LanManager {
 
   // ===== 事件 =====
 
-  on(event: string, cb: (...args: any[]) => void): void {
-    if (!this.listeners[event]) { this.listeners[event] = []; }
-    this.listeners[event].push(cb);
+  on(event: string, cb: EventHandler): void {
+    (this.listeners[event] ??= []).push(cb);
   }
 
   off(event: string): void {
