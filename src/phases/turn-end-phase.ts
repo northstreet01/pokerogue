@@ -1,11 +1,8 @@
 import { applyAbAttrs } from "#abilities/apply-ab-attrs";
 import { globalScene } from "#app/global-scene";
 import { getPokemonNameWithAffix } from "#app/messages";
-import { CoopManager } from "#app/lan/coop-manager";
-import { LanManager } from "#app/lan/lan-manager";
 import { TerrainType } from "#data/terrain";
 import { BattlerTagLapseType } from "#enums/battler-tag-lapse-type";
-import { BattlerIndex } from "#enums/battler-index";
 import { WeatherType } from "#enums/weather-type";
 import { TurnEndEvent } from "#events/battle-scene";
 import type { Pokemon } from "#field/pokemon";
@@ -80,57 +77,11 @@ export class TurnEndPhase extends FieldPhase {
       globalScene.arena.trySetTerrain(TerrainType.NONE);
     }
 
-    // 合作模式：同步敌人 HP
-    this.syncEnemyDamage();
+    // 注意：合作模式下不再需要 P2P 敌人 HP 同步。
+    // Host 在 SendTurnResultPhase 中发送 TurnResult（包含全场 HP），
+    // Client 在 WaitTurnResultPhase 中接收并应用。
+    // 之前的 syncEnemyDamage() 每回合等 5 秒超时 → 已删除。
 
     this.end();
-  }
-
-  /**
-   * P2P 敌人HP同步：交换双方宝可梦对敌人造成的本轮伤害，取最低 HP。
-   * 注意：单次监听，收到后立即清理，防止每回合累积。
-   */
-  private syncEnemyDamage(): void {
-    const coop = CoopManager.getInstance();
-    const lm = LanManager.getInstance();
-    if (!coop.isActive()) return;
-
-    const field = globalScene.getField();
-
-    // 收集本方看到的敌人 HP
-    const enemyHp: Array<{ index: number; hp: number }> = [];
-    for (let i = BattlerIndex.ENEMY; i <= BattlerIndex.ENEMY_2; i++) {
-      const enemy = field[i];
-      if (enemy?.isActive()) {
-        enemyHp.push({ index: i, hp: enemy.hp });
-      }
-    }
-
-    // 一次性监听：收到对方敌人的 HP 后合并（取最低值）
-    let synced = false;
-    const handler = (data: any) => {
-      if (synced || !data || data.sender === lm.getRole()) return;
-      synced = true;
-      clearTimeout(tid);
-      lm.off("enemy-hp-sync");
-
-      console.log("[TURN_END] 合并敌人HP:", JSON.stringify(data.enemyHp));
-      for (const eh of data.enemyHp) {
-        const enemy = field[eh.index];
-        if (enemy) {
-          enemy.hp = Math.min(enemy.hp, eh.hp);
-          enemy.updateInfo();
-        }
-      }
-    };
-    lm.on("enemy-hp-sync", handler);
-
-    // 超时清理（防止 listener 泄漏）
-    const tid = setTimeout(() => {
-      if (!synced) { lm.off("enemy-hp-sync"); }
-    }, 5000);
-
-    // 发送给队友
-    lm.send({ type: "enemy-hp-sync", enemyHp, sender: lm.getRole() });
   }
 }

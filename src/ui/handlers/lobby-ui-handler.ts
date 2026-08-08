@@ -55,6 +55,7 @@ export class LobbyUiHandler extends UiHandler {
 
     lm.off("opponent-joined");
     lm.off("game-start");
+    lm.off("disconnected");
     lm.on("opponent-joined", () => {
       console.log("[LOBBY] opponent-joined");
       this.opponentHere = true; this.refresh();
