@@ -31,13 +31,12 @@ export class CoopPartySyncPhase extends Phase {
       stats: [...p.stats], name: p.getNameToRender(),
       formIndex: p.formIndex, gender: p.gender, shiny: p.shiny,
     }));
-    const myFirstSpecies = myParty[0]?.speciesId;
     lm.send({ type: "party-sync", party: myParty, sender: lm.getRole() });
 
     // 等待对方队伍（忽略自己发出的回弹）
     lm.on("party-sync", (partyData: any[], sender?: string) => {
       if (sender === lm.getRole()) return;
-      if (partyData[0]?.speciesId === myFirstSpecies) return;
+      // 注：不再用 myFirstSpecies 过滤——双方选同一御三家时会误判为回弹
 
       console.log("[PARTY_SYNC] 收到对手队伍, 添加 ghost 副本到 slot 1");
 
