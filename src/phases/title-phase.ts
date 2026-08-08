@@ -191,10 +191,11 @@ export class TitlePhase extends Phase {
       {
         label: "局域网联机",
         handler: () => {
-          globalScene.ui.setOverlayMode(UiMode.LAN_MENU);
+          // 结束 TitlePhase，让后续 Phase 能正常运行
+          this.end();
+          globalScene.ui.setMode(UiMode.LAN_MENU);
           return true;
         },
-        keepOpen: true,
       },
     );
     const config: OptionSelectConfig = {
