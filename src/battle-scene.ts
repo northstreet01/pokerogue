@@ -2,7 +2,6 @@ import { applyAbAttrs } from "#abilities/apply-ab-attrs";
 import { Animation } from "#app/animations";
 import { Battle } from "#app/battle";
 import { CoopManager } from "#app/lan/coop-manager";
-import { LanManager } from "#app/lan/lan-manager";
 import {
   ANTI_VARIANCE_WEIGHT_MODIFIER,
   AVERAGE_ENCOUNTERS_PER_RUN_TARGET,
@@ -731,19 +730,6 @@ export class BattleScene extends SceneBase {
    */
   public getPlayerField(active = false): PlayerPokemon[] {
     const party = this.getPlayerParty();
-    // 合作模式：field slot 0=己方首发, slot 1=对手 ghost (在 party 末尾)
-    if (CoopManager.getInstance().isActive() && this.currentBattle?.double) {
-      const local = party.filter(p => !(p as any)._coopGhost && (!active || p.isActive()));
-      const ghosts = party.filter(p => (p as any)._coopGhost && (!active || p.isActive()));
-      const remoteActive = ghosts[0];
-      const localActive = local[0];
-      if (!localActive) return [];
-      const role = LanManager.getInstance().getRole();
-      // Host: slot0=local, slot1=remote ghost. Client: slot0=remote ghost, slot1=local
-      return role === "host"
-        ? [localActive, remoteActive].filter(Boolean)
-        : [remoteActive, localActive].filter(Boolean);
-    }
     return party
       .slice(0, Math.min(party.length, this.currentBattle?.double ? 2 : 1))
       .filter(p => !active || p.isActive());

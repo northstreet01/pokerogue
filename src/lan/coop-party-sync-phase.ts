@@ -75,8 +75,18 @@ export class CoopPartySyncPhase extends Phase {
 
       console.log("[PARTY_SYNC] 重排前:", party.map(p => p.getNameToRender()).join(", "), "ghostStart:", ghostStartIdx);
 
-      // ghost 全部留在 party 末尾，不混入本地精灵
-      // getPlayerField() 负责把正确的 ghost 映射到 field slot
+      // 把对手首发 ghost 挪到活跃槽位，其余留在末尾当后备池
+      if (party.length > ghostStartIdx) {
+        if (localRole === "host") {
+          const lead = party.splice(ghostStartIdx, 1)[0]; party.splice(1, 0, lead);
+        } else {
+          const lead = party.splice(ghostStartIdx, 1)[0];
+          const myLead = party.shift()!;
+          party.splice(0, 0, lead); party.splice(1, 0, myLead);
+        }
+        // 更新后备池起始位置
+        CoopManager.getInstance().setRemotePartyRange(ghostStartIdx > 0 ? ghostStartIdx : 2, party.length - (ghostStartIdx > 0 ? ghostStartIdx : 2));
+      }
 
       console.log("[PARTY_SYNC] 重排后:", party.map(p => p.getNameToRender()).join(", "));
       console.log("[PARTY_SYNC] slot0:", party[0]?.getNameToRender(), "slot1:", party[1]?.getNameToRender());
