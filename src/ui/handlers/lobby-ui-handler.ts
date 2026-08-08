@@ -1,5 +1,5 @@
 /**
- * 大厅 UI - 联机等待 & 启动
+ * 大厅 UI - 等待对手 → 开始游戏
  */
 
 import { globalScene } from "#app/global-scene";
@@ -17,32 +17,26 @@ export class LobbyUiHandler extends UiHandler {
   private infoText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private opponentHere = false;
-  private gameStarting = false;
 
-  constructor() {
-    super(UiMode.LOBBY);
-  }
+  constructor() { super(UiMode.LOBBY); }
 
   override setup(): void {
     this.container = globalScene.add.container(0, 0);
     this.container.setVisible(false);
-
     const cw = globalScene.scaledCanvas.width;
     const ch = globalScene.scaledCanvas.height;
-    const winW = 360;
-    const winH = 240;
+    const winW = 360, winH = 200;
     const offY = -ch;
     const winX = (cw - winW) / 2;
     const winY = offY + (ch - winH) / 2;
 
     this.container.add(addWindow(winX, winY, winW, winH).setOrigin(0));
     this.container.add(addTextObject(cw / 2, winY + 20, "房间大厅", TextStyle.SUMMARY_HEADER).setOrigin(0.5, 0));
-    this.infoText = addTextObject(cw / 2, winY + 70, "", TextStyle.STATS_VALUE).setOrigin(0.5, 0);
+    this.infoText = addTextObject(cw / 2, winY + 65, "", TextStyle.STATS_VALUE).setOrigin(0.5, 0);
     this.container.add(this.infoText);
-    this.hintText = addTextObject(cw / 2, winY + 150, "", TextStyle.WINDOW).setOrigin(0.5, 0);
+    this.hintText = addTextObject(cw / 2, winY + 130, "", TextStyle.WINDOW).setOrigin(0.5, 0);
     this.container.add(this.hintText);
-    this.container.add(addTextObject(cw / 2, winY + winH - 20, "X 离开房间", TextStyle.STATS_LABEL).setOrigin(0.5, 0));
-
+    this.container.add(addTextObject(cw / 2, winY + winH - 20, "Enter 确认  X 返回", TextStyle.STATS_LABEL).setOrigin(0.5, 0));
     this.getUi().add(this.container);
   }
 
@@ -50,21 +44,14 @@ export class LobbyUiHandler extends UiHandler {
     super.show(_args);
     this.container?.setVisible(true);
     this.opponentHere = false;
-    this.gameStarting = false;
-
     const lm = LanManager.getInstance();
 
     lm.on("opponent-joined", () => { this.opponentHere = true; this.refresh(); });
     lm.on("disconnected", () => { this.opponentHere = false; this.refresh(); });
-    lm.on("game-start", (seed: string) => {
-      if (this.gameStarting) return;
-      this.gameStarting = true;
+    lm.on("game-start", (_seed: string) => {
+      // Client: 收到 Host 的开始信号 → 激活合作模式 → 退回标题
       CoopManager.getInstance().start();
-      globalScene.ui.setMode(UiMode.MESSAGE);
-      globalScene.ui.clearText();
-      setTimeout(() => {
-        globalScene.phaseManager.pushNew("CoopStartPhase", seed);
-      }, 100);
+      this.leaveToTitle();
     });
 
     if (lm.isOpponentConnected()) this.opponentHere = true;
@@ -78,14 +65,10 @@ export class LobbyUiHandler extends UiHandler {
       lm.isHost() ? "· Host (你)" : "· Client (你)",
       this.opponentHere ? "· 对手已连接 ✓" : "· 等待对手...",
     ].join("\n"));
-
-    if (lm.isHost() && this.opponentHere) {
-      this.hintText?.setText("按 Enter 开始游戏");
-    } else if (!lm.isHost()) {
-      this.hintText?.setText("等待 Host 启动...");
-    } else {
-      this.hintText?.setText("");
-    }
+    this.hintText?.setText(
+      lm.isHost() && this.opponentHere ? "按 Enter 开始，双方将选择初始宝可梦" :
+      !lm.isHost() ? "等待 Host 启动..." : ""
+    );
   }
 
   override processInput(button: Button): boolean {
@@ -93,17 +76,11 @@ export class LobbyUiHandler extends UiHandler {
     switch (button) {
       case Button.SUBMIT: {
         const lm = LanManager.getInstance();
-        if (lm.isHost() && this.opponentHere && !this.gameStarting) {
-          this.gameStarting = true;
-          const seed = Math.random().toString(36).slice(2, 10);
+        if (lm.isHost() && this.opponentHere) {
+          const seed = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
           lm.sendStart(seed);
           CoopManager.getInstance().start();
-          // 清 UI → 退回标题 → 启动新游戏
-          globalScene.ui.setMode(UiMode.MESSAGE);
-          globalScene.ui.clearText();
-          setTimeout(() => {
-            globalScene.phaseManager.pushNew("CoopStartPhase", seed);
-          }, 100);
+          this.leaveToTitle();
         }
         return true;
       }
@@ -113,6 +90,12 @@ export class LobbyUiHandler extends UiHandler {
         return true;
       default: return false;
     }
+  }
+
+  private leaveToTitle(): void {
+    LanManager.getInstance().off("game-start");
+    LanManager.getInstance().off("opponent-joined");
+    globalScene.ui.setMode(UiMode.TITLE);
   }
 
   override clear(): void { super.clear(); this.container?.setVisible(false); }
