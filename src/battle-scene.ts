@@ -1,6 +1,7 @@
 import { applyAbAttrs } from "#abilities/apply-ab-attrs";
 import { Animation } from "#app/animations";
 import { Battle } from "#app/battle";
+import { CoopManager } from "#app/lan/coop-manager";
 import {
   ANTI_VARIANCE_WEIGHT_MODIFIER,
   AVERAGE_ENCOUNTERS_PER_RUN_TARGET,
@@ -1481,6 +1482,11 @@ export class BattleScene extends SceneBase {
    * @returns Whether the battle should be a double battle.
    */
   private checkIsDouble({ double: forcedDouble, battleType, waveIndex, trainer }: NewBattleConstructedProps): boolean {
+    // 合作模式：始终双打（双方宝可梦同时上场）
+    if (CoopManager.getInstance().isActive()) {
+      return true;
+    }
+
     // TODO: enforce using the proper override depending on whether it's a trainer or a wild battle
     const doubleBattleOverride = this.doCheckDoubleOverride(waveIndex);
     if (doubleBattleOverride != null) {
