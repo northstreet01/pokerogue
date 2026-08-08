@@ -16,6 +16,7 @@ import { GameModes } from "#enums/game-modes";
 import { ModifierPoolType } from "#enums/modifier-pool-type";
 import { UiMode } from "#enums/ui-mode";
 import { Unlockables } from "#enums/unlockables";
+import { CoopManager } from "#app/lan/coop-manager";
 import { getBiomeKey } from "#field/arena";
 import type { Modifier } from "#modifiers/modifier";
 import { getDailyRunStarterModifiers, regenerateModifierPoolThresholds } from "#modifiers/modifier-type";
@@ -374,6 +375,11 @@ export class TitlePhase extends Phase {
       globalScene.newArena(globalScene.gameMode.getStartingBiome());
     } else {
       audioManager.playBgm();
+    }
+
+    // 合作模式：选完宝可梦后同步队伍
+    if (CoopManager.getInstance().isActive()) {
+      globalScene.phaseManager.pushNew("CoopPartySyncPhase");
     }
 
     globalScene.phaseManager.pushNew("EncounterPhase", this.loaded);

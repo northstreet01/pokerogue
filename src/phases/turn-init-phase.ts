@@ -38,16 +38,11 @@ export class TurnInitPhase extends FieldPhase {
       }
     });
 
-    // 合作模式：首次回合前同步队伍数据
-    const coopManager = CoopManager.getInstance();
-    if (coopManager.isActive() && !coopManager.isPartySynced()) {
-      globalScene.phaseManager.unshiftNew("CoopPartySyncPhase");
-    }
-
     globalScene.eventTarget.dispatchEvent(new TurnInitEvent());
     handleMysteryEncounterBattleStartEffects();
     if (handleMysteryEncounterTurnStartEffects()) { this.end(); return; }
 
+    const coopManager = CoopManager.getInstance();
     const isCoop = coopManager.isActive();
     const localRole = isCoop ? coopManager.getLocalRole() : null;
 
