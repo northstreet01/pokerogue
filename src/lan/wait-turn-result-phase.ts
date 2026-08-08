@@ -19,6 +19,12 @@ export class WaitTurnResultPhase extends Phase {
     const lm = LanManager.getInstance();
     if (!coop.isActive()) { this.end(); return; }
 
+    const timeout = setTimeout(() => {
+      if (!resolved) { console.log("[WAIT_RESULT] 30s超时"); cleanup(); this.end(); }
+    }, 30000);
+
+    const cleanup = () => { clearTimeout(timeout); lm.off("turn-result"); };
+
     let resolved = false;
     const handler = (data: any) => {
       if (resolved) return;
@@ -38,11 +44,9 @@ export class WaitTurnResultPhase extends Phase {
           const effect = StatusEffect[ps.status as keyof typeof StatusEffect];
           if (effect != null) {
             pokemon.status = new Status(effect);
-            pokemon.updateInfo();
           }
         } else if (!ps.status && pokemon.status) {
           pokemon.status = null;
-          pokemon.updateInfo();
         }
         pokemon.updateInfo();
       }
@@ -52,14 +56,7 @@ export class WaitTurnResultPhase extends Phase {
 
     lm.on("turn-result", handler);
 
-    // 检查缓存
     const pending = lm.getPendingTurnResult?.();
     if (pending) { handler(pending); return; }
-
-    const timeout = setTimeout(() => {
-      if (!resolved) { console.log("[WAIT_RESULT] 30s超时"); cleanup(); this.end(); }
-    }, 30000);
-
-    const cleanup = () => { clearTimeout(timeout); lm.off("turn-result"); };
   }
 }

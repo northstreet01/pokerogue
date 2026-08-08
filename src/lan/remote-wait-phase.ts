@@ -27,12 +27,25 @@ export class RemoteWaitPhase extends Phase {
     const remote = globalScene.getField()[remoteIndex];
     if (!remote?.isActive()) { this.end(); return; }
 
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        console.log("[REMOTE_WAIT] 30s超时→挣扎");
+        battle.turnCommands[remoteIndex] = {
+          command: Command.FIGHT,
+          move: { move: MoveId.STRUGGLE, targets: [], useMode: MoveUseMode.NORMAL },
+        };
+        cleanup();
+        this.end();
+      }
+    }, 30000);
+
+    const cleanup = () => { clearTimeout(timeout); lm.off("action"); };
+
     let resolved = false;
     const resolve = (cmds: any[]) => {
       if (resolved || !Array.isArray(cmds)) return;
       resolved = true;
       cleanup();
-
       for (const cmd of cmds) {
         battle.turnCommands[cmd.index] = {
           command: cmd.command ?? Command.FIGHT,
@@ -47,19 +60,5 @@ export class RemoteWaitPhase extends Phase {
     lm.on("action", resolve);
     const pending = lm.getPendingAction();
     if (pending) { resolve(pending); return; }
-
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        console.log("[REMOTE_WAIT] 30s超时→挣扎");
-        battle.turnCommands[remoteIndex] = {
-          command: Command.FIGHT,
-          move: { move: MoveId.STRUGGLE, targets: [], useMode: MoveUseMode.NORMAL },
-        };
-        cleanup();
-        this.end();
-      }
-    }, 30000);
-
-    const cleanup = () => { clearTimeout(timeout); lm.off("action"); };
   }
 }
