@@ -2,6 +2,8 @@ import type { TurnCommand } from "#app/battle";
 import { globalScene } from "#app/global-scene";
 import { settings } from "#app/global-settings-manager";
 import { speciesDataRegistry } from "#app/global-species-data-registry";
+import { CoopManager } from "#app/lan/coop-manager";
+import { LanManager } from "#app/lan/lan-manager";
 import { getPokemonNameWithAffix } from "#app/messages";
 import { TrappedTag } from "#data/battler-tags";
 import { getDailyEventSeedBoss } from "#data/daily-seed/daily-run";
@@ -685,6 +687,41 @@ export class CommandPhase extends FieldPhase {
   }
 
   end() {
+    // 合作模式 Client 端：选完指令后自动发送给 Host
+    this.sendCoopAction();
+
     globalScene.ui.setMode(UiMode.MESSAGE).then(() => super.end());
+  }
+
+  /**
+   * 合作模式 Client 端：将本地选择的指令发送给 Host
+   */
+  private sendCoopAction(): void {
+    const coop = CoopManager.getInstance();
+    const lm = LanManager.getInstance();
+    if (!coop.isActive() || lm.isHost()) return;
+
+    const battle = globalScene.currentBattle;
+    const localCmds: any[] = [];
+    const field = globalScene.getField();
+
+    for (let i = 0; i < field.length; i++) {
+      const pokemon = field[i];
+      if (pokemon?.isActive() && pokemon.isPlayer() && battle.turnCommands[i]) {
+        const cmd = battle.turnCommands[i];
+        localCmds.push({
+          index: i,
+          command: cmd.command,
+          move: cmd.move
+            ? { move: cmd.move.move, targets: cmd.move.targets }
+            : null,
+          skip: cmd.skip,
+        });
+      }
+    }
+
+    if (localCmds.length > 0) {
+      lm.sendAction(localCmds);
+    }
   }
 }

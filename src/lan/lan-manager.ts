@@ -12,6 +12,7 @@ export class LanManager {
   private _connected = false;
   private _opponentConnected = false;
   private listeners: Record<string, EventHandler[]> = {};
+  private _lastSnapshot: any = null;
 
   private constructor() {
     window.lanApi?.onConnected(() => {
@@ -37,6 +38,9 @@ export class LanManager {
         this.emit("action", msg.commands);
       } else if (msg.type === "faint") {
         this.emit("faint", msg.allFainted);
+      } else if (msg.type === "snapshot") {
+        this._lastSnapshot = msg.snapshot;
+        this.emit("snapshot", msg.snapshot);
       } else if (msg.type === "party-sync") {
         this.emit("party-sync", msg.party, msg.sender);
       }
@@ -78,6 +82,10 @@ export class LanManager {
   sendAction(commands: any[]): void { this.send({ type: "action", commands }); }
   sendFaint(allFainted: boolean): void { this.send({ type: "faint", allFainted }); }
   sendPartySync(party: any[]): void { this.send({ type: "party-sync", party }); }
+  sendSnapshot(snapshot: any): void { this.send({ type: "snapshot", snapshot }); }
+
+  /** Client 端获取最后收到的快照（消费后清除） */
+  getLastSnapshot(): any { const s = this._lastSnapshot; this._lastSnapshot = null; return s; }
 
   // ===== 状态 =====
 

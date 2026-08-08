@@ -45,6 +45,7 @@ export class TurnInitPhase extends FieldPhase {
     const coopManager = CoopManager.getInstance();
     const isCoop = coopManager.isActive();
     const localRole = isCoop ? coopManager.getLocalRole() : null;
+    const isClient = isCoop && localRole === "client";
 
     globalScene.getField().forEach((pokemon, i) => {
       if (pokemon?.isActive()) {
@@ -62,22 +63,32 @@ export class TurnInitPhase extends FieldPhase {
             if (isLocal) {
               globalScene.phaseManager.pushNew("CommandPhase", i);
             }
-            // 远程宝可梦的指令由 CoopSyncPhase 从网络接收
+            // 远程宝可梦的指令：Host 通过 RemoteWaitPhase 等待，Client 不处理
           } else {
             globalScene.phaseManager.pushNew("CommandPhase", i);
           }
-        } else {
+        } else if (!isClient) {
+          // Host: 推 EnemyCommandPhase（正常 AI）
+          // Client: 不推 EnemyCommandPhase（Host 处理 AI，通过快照同步结果）
           globalScene.phaseManager.pushNew("EnemyCommandPhase", i - BattlerIndex.ENEMY);
         }
       }
     });
 
-    // 合作模式：指令同步（发送本地指令 + 等待远程指令）
+    // 合作模式：Host 等待 Client 指令 + 执行回合 / Client 等待快照
     if (isCoop) {
-      globalScene.phaseManager.pushNew("CoopSyncPhase");
+      if (localRole === "host") {
+        // Host: 等待 Client 网络指令 → 开始回合执行
+        globalScene.phaseManager.pushNew("RemoteWaitPhase");
+        globalScene.phaseManager.pushNew("TurnStartPhase");
+      } else {
+        // Client: 不执行 TurnStartPhase，等待 Host 下发 TurnSnapshot
+        globalScene.phaseManager.pushNew("ApplySnapshotPhase");
+      }
+    } else {
+      // 单机模式：直接开始回合
+      globalScene.phaseManager.pushNew("TurnStartPhase");
     }
-
-    globalScene.phaseManager.pushNew("TurnStartPhase");
     this.end();
   }
 }

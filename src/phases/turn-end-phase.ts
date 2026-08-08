@@ -1,6 +1,10 @@
 import { applyAbAttrs } from "#abilities/apply-ab-attrs";
 import { globalScene } from "#app/global-scene";
 import { getPokemonNameWithAffix } from "#app/messages";
+import { CoopManager } from "#app/lan/coop-manager";
+import { LanManager } from "#app/lan/lan-manager";
+import type { TurnSnapshot } from "#app/lan/turn-snapshot";
+import { statusEffectToString } from "#app/lan/turn-snapshot";
 import { TerrainType } from "#data/terrain";
 import { BattlerTagLapseType } from "#enums/battler-tag-lapse-type";
 import { WeatherType } from "#enums/weather-type";
@@ -77,6 +81,35 @@ export class TurnEndPhase extends FieldPhase {
       globalScene.arena.trySetTerrain(TerrainType.NONE);
     }
 
+    // 合作模式 Host：打包 TurnSnapshot 发送给 Client
+    this.sendCoopSnapshot();
+
     this.end();
+  }
+
+  /**
+   * 合作模式 Host 端：打包战场快照发送给 Client
+   */
+  private sendCoopSnapshot(): void {
+    const coop = CoopManager.getInstance();
+    const lm = LanManager.getInstance();
+    if (!coop.isActive() || !lm.isHost()) return;
+
+    const field = globalScene.getField();
+    const snapshot: TurnSnapshot = {
+      turn: globalScene.currentBattle.turn,
+      pokemon: field.map((pokemon, index) => ({
+        index,
+        hp: pokemon?.hp ?? 0,
+        maxHp: pokemon?.getMaxHp?.() ?? 0,
+        status: statusEffectToString(pokemon?.status?.effect),
+        fainted: pokemon?.isFainted?.() ?? false,
+        statStages: pokemon?.summonData?.statStages
+          ? [...pokemon.summonData.statStages]
+          : [0, 0, 0, 0, 0],
+      })),
+    };
+
+    lm.sendSnapshot(snapshot);
   }
 }

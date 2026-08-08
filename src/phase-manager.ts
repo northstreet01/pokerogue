@@ -115,6 +115,8 @@ import { CoopPartySyncPhase } from "#app/lan/coop-party-sync-phase";
 import { CoopSyncPhase } from "#app/lan/coop-sync-phase";
 import { CoopRevivalPhase } from "#app/lan/coop-revival-phase";
 import { CoopStartPhase } from "#app/lan/coop-start-phase";
+import { RemoteWaitPhase } from "#app/lan/remote-wait-phase";
+import { ApplySnapshotPhase } from "#app/lan/apply-snapshot-phase";
 import type { PhaseConditionFunc, PhaseMap, PhaseString } from "#types/phase-types";
 import type { NonEmptyTuple } from "type-fest";
 
@@ -141,6 +143,8 @@ const PHASES = Object.freeze({
   CoopRevivalPhase,
   CoopSyncPhase,
   CoopStartPhase,
+  RemoteWaitPhase,
+  ApplySnapshotPhase,
   DamageAnimPhase,
   DynamicPhaseMarker,
   EggHatchPhase,
