@@ -28,7 +28,7 @@ export class CoopPartySyncPhase extends Phase {
       name: p.getNameToRender(), formIndex: p.formIndex,
       gender: p.gender, shiny: p.shiny, nature: p.nature,
       abilityIndex: p.abilityIndex,
-      moveset: p.getMoveset().map(m => ({ moveId: m.moveId, ppUsed: m.ppUsed, maxPp: m.getMovePp() })),
+      moveset: p.getMoveset().map(m => m.moveId),
     }));
     console.log("[PARTY_SYNC] 我方队伍:", myParty.map(p => `${p.name}(${p.speciesId})`).join(", "));
 
@@ -66,14 +66,14 @@ export class CoopPartySyncPhase extends Phase {
             lead.nature ?? 0,
           );
           ghost.hp = Math.min(lead.hp, lead.maxHp ?? lead.hp);
-          // 设置技能（精确副本）
-          if (lead.moveset) {
+          // 设置技能（精确副本—moveset 是 MoveId[]）
+          if (lead.moveset && lead.moveset.length > 0) {
             ghost.tryPopulateMoveset(lead.moveset, true);
           }
           (ghost as any)._coopGhost = true;
           party.push(ghost);
           CoopManager.getInstance().setRemoteGhostIndex(party.length - 1);
-          console.log("[PARTY_SYNC] 添加 ghost:", lead.name, "moves:", lead.moveset?.length);
+          console.log("[PARTY_SYNC] 添加 ghost:", lead.name, "moves:", lead.moveset);
         }
       }
 
