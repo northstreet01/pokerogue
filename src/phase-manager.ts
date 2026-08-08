@@ -247,6 +247,7 @@ const turnEndPhases: readonly PhaseString[] = [
   "BerryPhase",
   "CheckStatusEffectPhase",
   "TurnEndPhase",
+  "SendTurnResultPhase",
 ] as const;
 
 /**

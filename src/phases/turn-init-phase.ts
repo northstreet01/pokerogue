@@ -82,9 +82,9 @@ export class TurnInitPhase extends FieldPhase {
       if (localRole === "host") {
         // Host: 命令收集阶段
         // CommandPhase(Host) → EnemyCommandPhases → RemoteWaitPhase(等Client) → TurnStartPhase(结算)
+        // SendTurnResultPhase 由 TurnStartPhase 内部的 queueTurnEndPhases() 自动推入
         globalScene.phaseManager.pushNew("RemoteWaitPhase");
         globalScene.phaseManager.pushNew("TurnStartPhase");
-        globalScene.phaseManager.pushNew("SendTurnResultPhase");
       } else {
         // Client: 命令选择 → 发送 → 等待Host结算
         // CommandPhase(Client) → SendActionPhase → WaitTurnResultPhase → ApplyTurnResultPhase
