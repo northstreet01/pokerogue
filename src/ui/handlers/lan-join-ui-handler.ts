@@ -1,5 +1,5 @@
 /**
- * 加入房间界面 - 自由输入 IP 地址
+ * 加入房间界面 - TCP 版，支持粘贴 IP
  */
 
 import { globalScene } from "#app/global-scene";
@@ -11,17 +11,10 @@ import { addWindow } from "#ui/ui-theme";
 import { addTextObject } from "#ui/text";
 import { LanManager } from "#app/lan/lan-manager";
 
-// 用键盘输入模拟数字键映射
-const KEY_DIGITS: Record<string, string> = {
-  ZERO: "0", ONE: "1", TWO: "2", THREE: "3", FOUR: "4",
-  FIVE: "5", SIX: "6", SEVEN: "7", EIGHT: "8", NINE: "9",
-};
-
 export class LanJoinUiHandler extends UiHandler {
   private container: Phaser.GameObjects.Container | null = null;
   private ipText: Phaser.GameObjects.Text | null = null;
   private statusText: Phaser.GameObjects.Text | null = null;
-
   private ip = "";
   private port = 9090;
   private editPort = false;
@@ -38,41 +31,32 @@ export class LanJoinUiHandler extends UiHandler {
     const cw = globalScene.scaledCanvas.width;
     const ch = globalScene.scaledCanvas.height;
     const winW = 460;
-    const winH = 300;
+    const winH = 280;
     const offY = -ch;
     const winX = (cw - winW) / 2;
     const winY = offY + (ch - winH) / 2;
 
-    const bg = addWindow(winX, winY, winW, winH).setOrigin(0);
-    this.container.add(bg);
+    this.container.add(addWindow(winX, winY, winW, winH).setOrigin(0));
+    this.container.add(addTextObject(cw / 2, winY + 20, "加入房间", TextStyle.SUMMARY_HEADER).setOrigin(0.5, 0));
+    this.container.add(addTextObject(cw / 2, winY + 55, "输入 Host 的虚拟 IP 地址", TextStyle.WINDOW).setOrigin(0.5, 0));
 
-    const title = addTextObject(cw / 2, winY + 20, "加入房间", TextStyle.SUMMARY_HEADER).setOrigin(0.5, 0);
-    this.container.add(title);
-
-    const label = addTextObject(cw / 2, winY + 60, "输入 Host 的 IP 地址和端口", TextStyle.WINDOW).setOrigin(0.5, 0);
-    this.container.add(label);
-
-    this.ipText = addTextObject(cw / 2, winY + 110, "", TextStyle.STATS_VALUE).setOrigin(0.5, 0);
+    this.ipText = addTextObject(cw / 2, winY + 105, "", TextStyle.STATS_VALUE).setOrigin(0.5, 0);
     this.container.add(this.ipText);
 
-    this.statusText = addTextObject(cw / 2, winY + 170, "", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
+    this.statusText = addTextObject(cw / 2, winY + 160, "", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
     this.container.add(this.statusText);
 
-    const hints = addTextObject(cw / 2, winY + 240, "Ctrl+V 粘贴  TAB 切换  Z 连接  X 返回", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
-    this.container.add(hints);
-
+    this.container.add(addTextObject(cw / 2, winY + 230, "Ctrl+V 粘贴  TAB 切换  Z 连接  X 返回", TextStyle.STATS_LABEL).setOrigin(0.5, 0));
     this.getUi().add(this.container);
   }
 
   override show(_args: unknown[]): boolean {
     super.show(_args);
     this.ip = "";
-    this.port = 9090;
     this.editPort = false;
     this.connecting = false;
-    this.refreshDisplay();
+    this.refresh();
     this.container?.setVisible(true);
-    // 监听键盘输入 + 粘贴
     globalScene.input.keyboard?.on("keydown", this.onKeyDown, this);
     document.addEventListener("paste", this.onPaste);
     return true;
@@ -83,109 +67,56 @@ export class LanJoinUiHandler extends UiHandler {
     switch (button) {
       case Button.SUBMIT: this.doConnect(); return true;
       case Button.CANCEL:
-        globalScene.input.keyboard?.off("keydown", this.onKeyDown, this);
-        document.removeEventListener("paste", this.onPaste);
+        this.cleanup();
         globalScene.ui.setMode(UiMode.LAN_MENU);
         return true;
       default: return false;
     }
   }
 
-  override clear(): void {
-    super.clear();
-    globalScene.input.keyboard?.off("keydown", this.onKeyDown, this);
-    document.removeEventListener("paste", this.onPaste);
-    this.container?.setVisible(false);
-  }
-
   private onKeyDown = (event: KeyboardEvent): void => {
     if (!this.active || this.connecting) { return; }
-
-    // Backspace 删除
     if (event.key === "Backspace") {
-      if (this.editPort) {
-        this.port = Math.floor(this.port / 10) || 9090;
-      } else {
-        this.ip = this.ip.slice(0, -1);
-      }
-      this.refreshDisplay();
-      return;
+      this.editPort ? (this.port = Math.floor(this.port / 10) || 9090) : (this.ip = this.ip.slice(0, -1));
+    } else if (event.key === "Tab") { event.preventDefault(); this.editPort = !this.editPort; }
+    else if (event.key === "." && !this.editPort) { this.ip += "."; }
+    else if (/^[0-9]$/.test(event.key)) {
+      this.editPort ? (this.port = Math.min(65535, parseInt(String(this.port) + event.key) || 9090)) : (this.ip.length < 21 && (this.ip += event.key));
     }
-
-    // Tab 切换编辑位置
-    if (event.key === "Tab") {
-      event.preventDefault();
-      this.editPort = !this.editPort;
-      this.refreshDisplay();
-      return;
-    }
-
-    // 点号
-    if (event.key === "." && !this.editPort) {
-      this.ip += ".";
-      this.refreshDisplay();
-      return;
-    }
-
-    // 数字
-    if (/^[0-9]$/.test(event.key)) {
-      if (this.editPort) {
-        this.port = parseInt(String(this.port) + event.key) || 9090;
-        if (this.port > 65535) { this.port = 65535; }
-      } else {
-        if (this.ip.length < 21) {
-          this.ip += event.key;
-        }
-      }
-      this.refreshDisplay();
-    }
+    this.refresh();
   };
-
-  private formatDisplay(): string {
-    const padIp = this.ip.padEnd(15, " ");
-    const cursor = this.editPort ? "     ◀" : "◀     ";
-    return `${padIp}  ${cursor}  :${this.port}`;
-  }
 
   private onPaste = async (event: ClipboardEvent): Promise<void> => {
     if (!this.active || this.connecting) { return; }
     event.preventDefault();
     try {
-      const text = (await navigator.clipboard.readText()).trim();
-      // 过滤非 IP 字符
-      const cleaned = text.replace(/[^0-9.]/g, "");
-      if (cleaned) {
-        if (this.editPort) {
-          const port = parseInt(cleaned);
-          if (port >= 1 && port <= 65535) { this.port = port; }
-        } else {
-          this.ip = cleaned.slice(0, 21);
-        }
-        this.refreshDisplay();
-      }
-    } catch { /* clipboard access denied */ }
+      const text = (await navigator.clipboard.readText()).trim().replace(/[^0-9.]/g, "");
+      if (text) { this.editPort ? (this.port = Math.min(65535, parseInt(text) || 9090)) : (this.ip = text.slice(0, 21)); this.refresh(); }
+    } catch {}
   };
 
-  private refreshDisplay(): void {
-    this.ipText?.setText(this.formatDisplay());
+  private refresh(): void {
+    this.ipText?.setText(`${this.ip.padEnd(15, " ")}  ${this.editPort ? "    ◀" : "◀    "}  :${this.port}`);
   }
 
-  private doConnect(): void {
+  private async doConnect(): Promise<void> {
     const finalIp = this.ip.replace(/\.$/, "") || "localhost";
     this.connecting = true;
     this.statusText?.setText(`连接中... ${finalIp}:${this.port}`);
-
-    const lanManager = LanManager.getInstance();
-    lanManager.joinRoom(finalIp, this.port, "Client");
-
-    setTimeout(() => {
-      if (lanManager.getConnectionState() !== "disconnected") {
-        globalScene.input.keyboard?.off("keydown", this.onKeyDown, this);
-        globalScene.ui.setMode(UiMode.LOBBY);
-      } else {
-        this.statusText?.setText("连接失败！请检查 IP 和端口");
-        this.connecting = false;
-      }
-    }, 2000);
+    try {
+      await LanManager.getInstance().joinRoom(finalIp, this.port);
+      this.cleanup();
+      globalScene.ui.setMode(UiMode.LOBBY);
+    } catch {
+      this.statusText?.setText("连接失败！");
+      this.connecting = false;
+    }
   }
+
+  private cleanup(): void {
+    globalScene.input.keyboard?.off("keydown", this.onKeyDown, this);
+    document.removeEventListener("paste", this.onPaste);
+  }
+
+  override clear(): void { super.clear(); this.cleanup(); this.container?.setVisible(false); }
 }

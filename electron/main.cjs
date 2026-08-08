@@ -1,119 +1,69 @@
 /**
- * Electron 主进程
- * 内嵌 WebSocket 中继 + 静态文件服务
+ * Electron 主进程 - TCP 联机 + HTTP 静态文件服务
  */
 
-const { app, BrowserWindow } = require("electron");
-const { WebSocketServer } = require("ws");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { TcpServer, TCP_PORT } = require("./tcp-server.cjs");
+const { TcpClient } = require("./tcp-client.cjs");
 
-const WS_PORT = 9090;
 const HTTP_PORT = 8000;
-const MAX_PLAYERS = 2;
 
-// ========== WebSocket 服务器 ==========
+let tcpConnection = null;
 
-function startWSServer() {
-  const wss = new WebSocketServer({ port: WS_PORT });
-  const clients = new Map();
-  let nextId = 1;
-  let serverSeq = 1;  // 服务器消息序号，防止客户端防重丢弃
+// ========== IPC 桥接：渲染进程 ↔ TCP ==========
 
-  console.log(`[LAN] WebSocket 服务已启动，端口 ${WS_PORT}`);
-
-  wss.on("connection", (ws) => {
-    if (clients.size >= MAX_PLAYERS) {
-      ws.send(JSON.stringify({
-        type: "ERROR",
-        payload: { code: "ROOM_FULL", message: "房间已满" },
-        seq: serverSeq++, timestamp: Date.now(),
-      }));
-      ws.close();
-      return;
-    }
-
-    const clientId = `player_${nextId++}`;
-    const client = { ws, id: clientId, name: "", ready: false, connectedAt: Date.now() };
-    clients.set(ws, client);
-    console.log(`[LAN] 新连接: ${clientId} (${clients.size}/${MAX_PLAYERS})`);
-
-    ws.on("message", (raw) => {
-      try {
-        const msg = JSON.parse(raw.toString());
-
-        if (msg.type === "HELLO") {
-          client.name = msg.payload.playerName || clientId;
-          ws.send(JSON.stringify({
-            type: "HELLO_ACK",
-            payload: { assignedId: client.id, hostName: getHostName(), gameVersion: msg.payload.gameVersion },
-            seq: serverSeq++, timestamp: Date.now(),
-          }));
-          // 告诉新玩家：当前在线的人有哪些
-          for (const [, c] of clients) {
-            if (c !== client) {
-              ws.send(JSON.stringify({
-                type: "PLAYER_JOINED",
-                payload: { playerId: c.id, playerName: c.name, ready: c.ready },
-                seq: serverSeq++, timestamp: Date.now(),
-              }));
-            }
-          }
-          // 告诉老玩家：有新人来了
-          broadcast(ws, { type: "PLAYER_JOINED", payload: { playerId: client.id, playerName: client.name, ready: false }, seq: serverSeq++, timestamp: Date.now() });
-          return;
-        }
-
-        if (msg.type === "READY") { client.ready = true; }
-        else if (msg.type === "READY_CANCEL") { client.ready = false; }
-
-        // 心跳直接回复
-        if (msg.type === "HEARTBEAT") {
-          ws.send(JSON.stringify({ type: "HEARTBEAT_ACK", payload: {}, seq: msg.seq, timestamp: Date.now() }));
-          return;
-        }
-
-        relayMessage(ws, raw.toString());
-      } catch {}
-    });
-
-    ws.on("close", () => {
-      clients.delete(ws);
-      broadcast(null, { type: "PLAYER_LEFT", payload: { playerId: client.id }, seq: serverSeq++, timestamp: Date.now() });
-    });
-
-    ws.on("error", () => {});
+// Host: 创建房间
+ipcMain.handle("lan:host", async () => {
+  return new Promise((resolve) => {
+    tcpConnection = new TcpServer(
+      (msg) => { getMainWindow()?.webContents.send("lan:message", msg); },
+      () => { getMainWindow()?.webContents.send("lan:connected"); },
+      () => { getMainWindow()?.webContents.send("lan:disconnected"); },
+    );
+    tcpConnection.start();
+    resolve({ port: TCP_PORT });
   });
+});
 
-  function relayMessage(from, raw) {
-    for (const [ws] of clients) {
-      if (ws !== from && ws.readyState === ws.OPEN) ws.send(raw);
-    }
+// Client: 加入房间
+ipcMain.handle("lan:join", async (_event, host, port) => {
+  return new Promise((resolve, reject) => {
+    tcpConnection = new TcpClient(
+      (msg) => { getMainWindow()?.webContents.send("lan:message", msg); },
+      () => {
+        getMainWindow()?.webContents.send("lan:connected");
+        resolve({ success: true });
+      },
+      () => { getMainWindow()?.webContents.send("lan:disconnected"); },
+    );
+    tcpConnection.connect(host, port);
+    // 5秒超时
+    setTimeout(() => { if (!tcpConnection.socket?.readyState) reject(new Error("连接超时")); }, 5000);
+  });
+});
+
+// 发送消息到对方
+ipcMain.on("lan:send", (_event, msg) => {
+  tcpConnection?.send(msg);
+});
+
+// 离开房间
+ipcMain.on("lan:leave", () => {
+  if (tcpConnection) {
+    tcpConnection.stop?.() || tcpConnection.disconnect?.();
+    tcpConnection = null;
   }
+});
 
-  function broadcast(exclude, msg) {
-    const raw = JSON.stringify(msg);
-    for (const [ws] of clients) {
-      if (ws !== exclude && ws.readyState === ws.OPEN) ws.send(raw);
-    }
-  }
-
-  function getHostName() {
-    for (const [, c] of clients) {
-      if (c.id === "player_1") return c.name || "Host";
-    }
-    return "Host";
-  }
-}
-
-// ========== HTTP 静态文件服务器 ==========
+// ========== HTTP 服务器 ==========
 
 const MIME = {
   ".html": "text/html", ".js": "application/javascript", ".css": "text/css",
   ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml",
   ".json": "application/json", ".ttf": "font/ttf", ".ogg": "audio/ogg",
-  ".mp3": "audio/mpeg", ".ico": "image/x-icon", ".wasm": "application/wasm",
 };
 
 function startHTTPServer() {
@@ -121,34 +71,37 @@ function startHTTPServer() {
   http.createServer((req, res) => {
     let filePath = path.join(root, req.url === "/" ? "index.html" : req.url.split("?")[0]);
     fs.readFile(filePath, (err, data) => {
-      if (err) { res.writeHead(404); res.end("Not Found"); return; }
-      const ext = path.extname(filePath);
-      res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream" });
+      if (err) { res.writeHead(404); res.end(""); return; }
+      res.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream" });
       res.end(data);
     });
-  }).listen(HTTP_PORT, () => console.log(`[HTTP] 游戏服务已启动: http://localhost:${HTTP_PORT}`));
+  }).listen(HTTP_PORT, () => console.log(`[HTTP] http://localhost:${HTTP_PORT}`));
 }
 
-// ========== Electron 窗口 ==========
+// ========== 窗口 ==========
+
+let mainWindow = null;
+
+function getMainWindow() { return mainWindow; }
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280, height: 720,
-    title: "PokéRogue LAN",
-    webPreferences: { nodeIntegration: false, contextIsolation: true },
+    webPreferences: { nodeIntegration: false, contextIsolation: true, preload: path.join(__dirname, "preload.cjs") },
     autoHideMenuBar: true,
   });
-
-  win.setMenuBarVisibility(false);
-  win.loadURL(`http://localhost:${HTTP_PORT}`);
+  mainWindow.setMenuBarVisibility(false);
+  mainWindow.loadURL(`http://localhost:${HTTP_PORT}`);
 }
 
+// ========== 启动 ==========
+
 app.whenReady().then(() => {
-  startWSServer();
   startHTTPServer();
   createWindow();
 });
 
 app.on("window-all-closed", () => {
+  if (tcpConnection) { tcpConnection.stop?.() || tcpConnection.disconnect?.(); }
   app.quit();
 });
