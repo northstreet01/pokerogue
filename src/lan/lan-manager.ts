@@ -25,6 +25,9 @@ export class LanManager {
     window.lanApi?.onMessage((msg: any) => {
       this.emit("message", msg);
       // 根据消息类型触发特定事件
+      // 忽略自己发出的消息（Socket.io io.emit 会广播回自己）
+      if (msg.from === this.role) return;
+
       if (msg.type === "hello") {
         this._opponentConnected = true;
         this.emit("opponent-joined");
@@ -67,7 +70,10 @@ export class LanManager {
 
   // ===== 发送 =====
 
-  send(msg: any): void { window.lanApi?.send(msg); }
+  send(msg: any): void {
+    msg.from = this.role;
+    window.lanApi?.send(msg);
+  }
   sendStart(seed: string): void { this.send({ type: "start", seed }); }
   sendAction(commands: any[]): void { this.send({ type: "action", commands }); }
   sendFaint(allFainted: boolean): void { this.send({ type: "faint", allFainted }); }
