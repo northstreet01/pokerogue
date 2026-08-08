@@ -23,6 +23,7 @@ export class ApplySnapshotPhase extends Phase {
   override start(): void {
     // 仅 Client 执行
     const coop = CoopManager.getInstance();
+    console.log("[APPLY_SNAPSHOT] start, coop active:", coop.isActive());
     if (!coop.isActive()) {
       this.end();
       return;
@@ -33,12 +34,16 @@ export class ApplySnapshotPhase extends Phase {
     // 先检查缓存的快照（可能在 Phase 启动前就已收到）
     const cached = lm.getLastSnapshot();
     if (cached) {
+      console.log("[APPLY_SNAPSHOT] 使用缓存的快照, turn:", cached.turn);
       this.applySnapshot(cached);
       this.end();
       return;
     }
 
+    console.log("[APPLY_SNAPSHOT] 等待 Host 快照...");
+
     const handler = (snapshot: TurnSnapshot) => {
+      console.log("[APPLY_SNAPSHOT] 收到快照, turn:", snapshot.turn, "pokemon count:", snapshot.pokemon.length);
       this.received = true;
       cleanup();
       this.applySnapshot(snapshot);

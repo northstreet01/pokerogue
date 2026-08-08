@@ -47,6 +47,8 @@ export class TurnInitPhase extends FieldPhase {
     const localRole = isCoop ? coopManager.getLocalRole() : null;
     const isClient = isCoop && localRole === "client";
 
+    console.log("[TURN_INIT] isCoop:", isCoop, "localRole:", localRole, "field size:", globalScene.getField().filter(p => p?.isActive()).length);
+
     globalScene.getField().forEach((pokemon, i) => {
       if (pokemon?.isActive()) {
         if (pokemon.isPlayer()) {
@@ -79,14 +81,17 @@ export class TurnInitPhase extends FieldPhase {
     if (isCoop) {
       if (localRole === "host") {
         // Host: 等待 Client 网络指令 → 开始回合执行
+        console.log("[TURN_INIT] Host: 推 RemoteWaitPhase → TurnStartPhase");
         globalScene.phaseManager.pushNew("RemoteWaitPhase");
         globalScene.phaseManager.pushNew("TurnStartPhase");
       } else {
         // Client: 不执行 TurnStartPhase，等待 Host 下发 TurnSnapshot
+        console.log("[TURN_INIT] Client: 推 ApplySnapshotPhase (不推 TurnStartPhase)");
         globalScene.phaseManager.pushNew("ApplySnapshotPhase");
       }
     } else {
       // 单机模式：直接开始回合
+      console.log("[TURN_INIT] 单机模式: 推 TurnStartPhase");
       globalScene.phaseManager.pushNew("TurnStartPhase");
     }
     this.end();

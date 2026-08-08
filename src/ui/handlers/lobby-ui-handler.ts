@@ -18,6 +18,7 @@ export class LobbyUiHandler extends UiHandler {
   private infoText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private opponentHere = false;
+  private gameStarted = false; // 防止重复触发
 
   constructor() { super(UiMode.LOBBY); }
 
@@ -43,21 +44,36 @@ export class LobbyUiHandler extends UiHandler {
 
   override show(_args: unknown[]): boolean {
     super.show(_args);
+    console.log("[LOBBY] show() 被调用");
     this.container?.setVisible(true);
     this.opponentHere = false;
+    this.gameStarted = false;
     const lm = LanManager.getInstance();
 
     lm.off("opponent-joined");
     lm.off("game-start");
-    lm.on("opponent-joined", () => { this.opponentHere = true; this.refresh(); });
-    lm.on("disconnected", () => { this.opponentHere = false; this.refresh(); });
+    lm.on("opponent-joined", () => {
+      console.log("[LOBBY] opponent-joined 事件");
+      this.opponentHere = true; this.refresh();
+    });
+    lm.on("disconnected", () => {
+      console.log("[LOBBY] disconnected 事件");
+      this.opponentHere = false; this.refresh();
+    });
 
     // Client 收到 Host 的 start 消息 → 直接推 CoopStartPhase 开始游戏
     lm.on("game-start", (seed: string) => {
-      this.startCoopGame(seed);
+      console.log("[LOBBY] game-start 事件, seed:", seed);
+      if (!this.gameStarted) {
+        this.gameStarted = true;
+        this.startCoopGame(seed);
+      }
     });
 
-    if (lm.isOpponentConnected()) this.opponentHere = true;
+    if (lm.isOpponentConnected()) {
+      console.log("[LOBBY] 对手已连接");
+      this.opponentHere = true;
+    }
     this.refresh();
     return true;
   }
@@ -79,17 +95,22 @@ export class LobbyUiHandler extends UiHandler {
 
   override processInput(button: Button): boolean {
     if (!this.active) return false;
+    console.log("[LOBBY] processInput:", button);
     switch (button) {
       case Button.SUBMIT: {
         const lm = LanManager.getInstance();
-        if (lm.isHost() && this.opponentHere) {
+        console.log("[LOBBY] SUBMIT - isHost:", lm.isHost(), "opponentHere:", this.opponentHere);
+        if (lm.isHost() && this.opponentHere && !this.gameStarted) {
+          this.gameStarted = true;
           const seed = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+          console.log("[LOBBY] Host 启动游戏, seed:", seed);
           lm.sendStart(seed);
           this.startCoopGame(seed);
         }
         return true;
       }
       case Button.CANCEL:
+        console.log("[LOBBY] CANCEL - 离开房间");
         LanManager.getInstance().leaveRoom();
         this.closeLobby();
         return true;
@@ -99,17 +120,33 @@ export class LobbyUiHandler extends UiHandler {
 
   /**
    * 直接推 CoopStartPhase 启动合作游戏
-   * 跳过标题画面 → 双方同步种子进入选初始宝可梦
+   * 注意：closeLobby() 会触发 UiMode.TITLE → TitlePhase，会打断 CoopStartPhase
+   * 所以先清 UI，再推 Phase
    */
   private startCoopGame(seed: string): void {
-    this.closeLobby();
+    console.log("[LOBBY] startCoopGame, seed:", seed);
+
+    // 隐藏大厅 UI
+    this.container?.setVisible(false);
+    this.active = false;
+
+    // 清空当前 Phase 队列
     globalScene.phaseManager.clearPhaseQueue();
+
+    // 推 CoopStartPhase 启动合作游戏（CoopStartPhase 内部会清 UI）
+    console.log("[LOBBY] 推 CoopStartPhase");
     globalScene.phaseManager.pushNew("CoopStartPhase", seed);
   }
 
   private closeLobby(): void {
+    this.container?.setVisible(false);
+    this.active = false;
     globalScene.ui.setMode(UiMode.TITLE);
   }
 
-  override clear(): void { super.clear(); this.container?.setVisible(false); }
+  override clear(): void {
+    console.log("[LOBBY] clear()");
+    super.clear();
+    this.container?.setVisible(false);
+  }
 }

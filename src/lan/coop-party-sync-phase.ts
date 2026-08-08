@@ -14,6 +14,8 @@ export class CoopPartySyncPhase extends Phase {
     const lm = LanManager.getInstance();
     const coop = CoopManager.getInstance();
 
+    console.log("[PARTY_SYNC] start, partySynced:", coop.isPartySynced(), "role:", lm.getRole());
+
     if (coop.isPartySynced()) { this.end(); return; }
 
     // 发送我方队伍

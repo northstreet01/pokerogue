@@ -22,6 +22,7 @@ export class RemoteWaitPhase extends Phase {
   override start(): void {
     // 仅 Host 执行
     if (!CoopManager.getInstance().isActive() || !LanManager.getInstance().isHost()) {
+      console.log("[REMOTE_WAIT] 跳过 (非 Host 或 coop 未激活)");
       this.end();
       return;
     }
@@ -33,15 +34,21 @@ export class RemoteWaitPhase extends Phase {
     const remoteIndex = BattlerIndex.PLAYER_2; // Client 的宝可梦位置
     const remotePokemon = globalScene.getField()[remoteIndex];
 
+    console.log("[REMOTE_WAIT] remoteIndex:", remoteIndex, "active:", remotePokemon?.isActive());
+
     // 如果远程宝可梦不在场上或已昏厥，无需等待，直接结束
     if (!remotePokemon?.isActive()) {
+      console.log("[REMOTE_WAIT] 远程宝可梦不活跃，跳过等待");
       this.end();
       return;
     }
 
+    console.log("[REMOTE_WAIT] 等待 Client 指令...");
+
     // 接收 Client 指令
     const handler = (cmds: any[]) => {
       if (this.timedOut) return;
+      console.log("[REMOTE_WAIT] 收到 Client 指令:", JSON.stringify(cmds));
 
       if (!Array.isArray(cmds)) return;
 

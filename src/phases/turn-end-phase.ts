@@ -95,6 +95,8 @@ export class TurnEndPhase extends FieldPhase {
     const lm = LanManager.getInstance();
     if (!coop.isActive() || !lm.isHost()) return;
 
+    console.log("[TURN_END] Host 发送 TurnSnapshot, turn:", globalScene.currentBattle.turn);
+
     const field = globalScene.getField();
     const snapshot: TurnSnapshot = {
       turn: globalScene.currentBattle.turn,

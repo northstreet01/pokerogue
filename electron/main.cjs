@@ -16,6 +16,7 @@ const GAME_PORT = 9090;
 
 let io = null;       // Host 的 Socket.io 服务端
 let socket = null;   // Client 的 Socket.io 连接（或 Host 自己也连）
+let gameServer = null; // HTTP 服务端引用（用于关闭）
 let mainWindow = null;
 
 // ========== HTTP 静态文件 ==========
@@ -37,28 +38,59 @@ function startHTTP() {
   }).listen(HTTP_PORT, () => console.log(`[HTTP] http://localhost:${HTTP_PORT}`));
 }
 
+// ========== 清理函数 ==========
+function cleanupLan() {
+  console.log("[LAN] 清理连接...");
+  if (socket) {
+    console.log("[LAN] 断开 socket 客户端");
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+  }
+  if (io) {
+    console.log("[LAN] 关闭 Socket.io 服务端");
+    io.close();
+    io = null;
+  }
+  if (gameServer) {
+    console.log("[LAN] 关闭 TCP 服务端 (端口 9090)");
+    gameServer.close();
+    gameServer = null;
+  }
+}
+
 // ========== Socket.io Host ==========
 ipcMain.handle("lan:host", async () => {
-  return new Promise((resolve) => {
-    const server = http.createServer();
-    io = new Server(server, { cors: { origin: "*" } });
+  console.log("[LAN] 创建 Host 房间...");
+  // 先清理旧的（防止端口占用）
+  cleanupLan();
+
+  return new Promise((resolve, reject) => {
+    gameServer = http.createServer();
+    io = new Server(gameServer, { cors: { origin: "*" } });
 
     io.on("connection", (sock) => {
       console.log("[Socket.io] 客户端已连接:", sock.id);
 
       // 转发消息：广播给其他人（除了发送者）
       sock.on("lan-message", (msg) => {
+        console.log("[Socket.io] 收到消息:", msg.type, "from:", msg.from);
         // 广播给除发送者外的所有客户端（Host 自己通过本地 socket 也能收到）
         sock.broadcast.emit("lan-message", msg);
       });
 
       sock.on("disconnect", () => {
-        console.log("[Socket.io] 客户端断开");
+        console.log("[Socket.io] 客户端断开:", sock.id);
         mainWindow?.webContents.send("lan:disconnected");
       });
     });
 
-    server.listen(GAME_PORT, () => {
+    gameServer.on("error", (err) => {
+      console.error("[Socket.io] 服务端错误:", err.message);
+      reject(err);
+    });
+
+    gameServer.listen(GAME_PORT, () => {
       console.log(`[Socket.io] 服务端已启动，端口 ${GAME_PORT}`);
 
       // Host 自己也连上去
@@ -71,12 +103,20 @@ ipcMain.handle("lan:host", async () => {
       socket.on("lan-message", (msg) => {
         mainWindow?.webContents.send("lan:message", msg);
       });
+      socket.on("connect_error", (err) => {
+        console.error("[Socket.io] Host 自连失败:", err.message);
+        reject(err);
+      });
     });
   });
 });
 
 // ========== Socket.io Client ==========
 ipcMain.handle("lan:join", async (_event, host, port) => {
+  console.log(`[LAN] 加入房间: ${host}:${port || GAME_PORT}`);
+  // 先清理旧的
+  if (socket) { socket.removeAllListeners(); socket.disconnect(); socket = null; }
+
   return new Promise((resolve, reject) => {
     socket = ClientIO(`http://${host}:${port || GAME_PORT}`, {
       timeout: 5000,
@@ -91,14 +131,17 @@ ipcMain.handle("lan:join", async (_event, host, port) => {
     });
 
     socket.on("lan-message", (msg) => {
+      console.log("[Socket.io] 收到消息:", msg.type, "from:", msg.from);
       mainWindow?.webContents.send("lan:message", msg);
     });
 
     socket.on("disconnect", () => {
+      console.log("[Socket.io] 断开连接");
       mainWindow?.webContents.send("lan:disconnected");
     });
 
     socket.on("connect_error", (err) => {
+      console.error("[Socket.io] 连接失败:", err.message);
       reject(err);
     });
   });
@@ -106,6 +149,7 @@ ipcMain.handle("lan:join", async (_event, host, port) => {
 
 // ========== IPC 发送 ==========
 ipcMain.on("lan:send", (_event, msg) => {
+  console.log("[IPC] 发送消息:", msg.type, "from:", msg.from);
   if (io) {
     // Host: 广播给所有客户端（除 Host 自己）
     io.emit("lan-message", msg);
@@ -116,8 +160,8 @@ ipcMain.on("lan:send", (_event, msg) => {
 });
 
 ipcMain.on("lan:leave", () => {
-  if (socket) { socket.disconnect(); socket = null; }
-  if (io) { io.close(); io = null; }
+  console.log("[IPC] 离开房间");
+  cleanupLan();
 });
 
 // ========== 窗口 ==========
@@ -137,7 +181,6 @@ function createWindow() {
 
 app.whenReady().then(() => { startHTTP(); createWindow(); });
 app.on("window-all-closed", () => {
-  if (socket) socket.disconnect();
-  if (io) io.close();
+  cleanupLan();
   app.quit();
 });
