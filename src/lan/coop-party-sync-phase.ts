@@ -49,15 +49,21 @@ export class CoopPartySyncPhase extends Phase {
       const party = globalScene.getPlayerParty();
       const localRole = lm.getRole();
 
-      // 只添加对方首发（slot 需要一只 ghost 上场即可，不需要全队）
+      // 只添加对方首发 ghost。如果己方 party 已满（6只），skip——不污染背包。
       const ghostStartIdx = party.length;
-      const lead = partyData[0];
-      const species = speciesDataRegistry.getSpecies(lead.speciesId);
-      if (species) {
-        const ghost = globalScene.addPlayerPokemon(species, lead.level, 0, lead.formIndex, lead.gender, lead.shiny, 0, [15, 15, 15, 15, 15, 15], 0);
-        ghost.hp = lead.hp;
-        party.push(ghost);
-        console.log("[PARTY_SYNC] 添加 ghost:", lead.name);
+      if (party.length >= 6) {
+        console.log("[PARTY_SYNC] 己方队伍已满(6只), 跳过 ghost 添加");
+      } else {
+        const lead = partyData[0];
+        const species = speciesDataRegistry.getSpecies(lead.speciesId);
+        if (species) {
+          const ghost = globalScene.addPlayerPokemon(species, lead.level, 0, lead.formIndex, lead.gender, lead.shiny, 0, [15, 15, 15, 15, 15, 15], 0);
+          ghost.hp = lead.hp;
+          (ghost as any)._coopGhost = true; // 标记为 ghost，UI 层可据此过滤
+          party.push(ghost);
+          CoopManager.getInstance().setRemoteGhostIndex(party.length - 1);
+          console.log("[PARTY_SYNC] 添加 ghost:", lead.name);
+        }
       }
 
       console.log("[PARTY_SYNC] 重排前:", party.map(p => p.getNameToRender()).join(", "), "ghostStart:", ghostStartIdx);

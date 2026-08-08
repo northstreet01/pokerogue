@@ -24,6 +24,7 @@ export class CoopManager {
   private lm = LanManager.getInstance();
   private partySynced = false;
   private _pendingSeed: string | null = null;
+  private _remoteGhostIndex = -1;
 
   private constructor() {}
 
@@ -35,6 +36,10 @@ export class CoopManager {
 
   /** 获取并清除待用种子 */
   getPendingSeed(): string | null { const s = this._pendingSeed; this._pendingSeed = null; return s; }
+
+  /** 记录 ghost 在 party 中的位置（用于 UI 过滤） */
+  setRemoteGhostIndex(idx: number): void { this._remoteGhostIndex = idx; }
+  getRemoteGhostIndex(): number { return this._remoteGhostIndex; }
 
   static getInstance(): CoopManager {
     if (!CoopManager.instance) { CoopManager.instance = new CoopManager(); }
