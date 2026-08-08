@@ -37,10 +37,14 @@ export class LanManager {
     api.onMessage((msg: any) => {
       console.log("[LanManager] 收到消息:", msg.type, msg);
       if (msg.type === "hello") {
+        const wasConnected = this._opponentConnected;
         this._opponentConnected = true;
         console.log("[LanManager] 对手已连接, 触发 opponent-joined");
         this.emit("opponent-joined", msg.name);
-        this.send({ type: "hello", name: this.role === "host" ? "Host" : "Client" });
+        // 只在第一次收到时回复，防止死循环
+        if (!wasConnected) {
+          this.send({ type: "hello", name: this.role === "host" ? "Host" : "Client" });
+        }
       } else if (msg.type === "ready") {
         this.emit("opponent-ready");
       } else if (msg.type === "start") {
