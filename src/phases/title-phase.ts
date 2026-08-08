@@ -365,6 +365,15 @@ export class TitlePhase extends Phase {
 
   // TODO: Refactor this
   end(): void {
+    // 合作模式：使用大厅同步的种子（保证 Host/Client RNG 一致）
+    const coop = CoopManager.getInstance();
+    const pendingSeed = coop.getPendingSeed();
+    if (pendingSeed && coop.isActive()) {
+      console.log("[TITLE_END] 使用合作模式种子:", pendingSeed);
+      globalScene.setSeed(pendingSeed);
+      globalScene.resetSeed();
+    }
+
     if (!this.loaded && !globalScene.gameMode.isDaily) {
       globalScene.gameMode = getGameMode(this.gameMode);
       if (this.gameMode === GameModes.CHALLENGE) {
@@ -378,7 +387,7 @@ export class TitlePhase extends Phase {
     }
 
     // 合作模式：选完宝可梦后同步队伍
-    if (CoopManager.getInstance().isActive()) {
+    if (coop.isActive()) {
       globalScene.phaseManager.pushNew("CoopPartySyncPhase");
     }
 

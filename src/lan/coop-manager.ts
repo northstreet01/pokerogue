@@ -23,11 +23,18 @@ export class CoopManager {
   };
   private lm = LanManager.getInstance();
   private partySynced = false;
+  private _pendingSeed: string | null = null;
 
   private constructor() {}
 
   isPartySynced(): boolean { return this.partySynced; }
   setPartySynced(): void { this.partySynced = true; }
+
+  /** 存储待用的合作模式种子（Host 发送给 Client 的同步种子） */
+  setPendingSeed(seed: string): void { this._pendingSeed = seed; }
+
+  /** 获取并清除待用种子 */
+  getPendingSeed(): string | null { const s = this._pendingSeed; this._pendingSeed = null; return s; }
 
   static getInstance(): CoopManager {
     if (!CoopManager.instance) { CoopManager.instance = new CoopManager(); }
