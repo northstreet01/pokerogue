@@ -22,8 +22,12 @@ export class CoopManager {
     itemPickTurn: 0, pvpWinStreak: 0,
   };
   private lm = LanManager.getInstance();
+  private partySynced = false;
 
   private constructor() {}
+
+  isPartySynced(): boolean { return this.partySynced; }
+  setPartySynced(): void { this.partySynced = true; }
 
   static getInstance(): CoopManager {
     if (!CoopManager.instance) { CoopManager.instance = new CoopManager(); }

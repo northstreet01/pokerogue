@@ -111,6 +111,7 @@ import { UnavailablePhase } from "#phases/unavailable-phase";
 import { UnlockPhase } from "#phases/unlock-phase";
 import { VictoryPhase } from "#phases/victory-phase";
 import { WeatherEffectPhase } from "#phases/weather-effect-phase";
+import { CoopPartySyncPhase } from "#app/lan/coop-party-sync-phase";
 import { CoopRevivalPhase } from "#app/lan/coop-revival-phase";
 import { CoopStartPhase } from "#app/lan/coop-start-phase";
 import { CoopSyncPhase } from "#app/lan/coop-sync-phase";
@@ -138,6 +139,7 @@ const PHASES = Object.freeze({
   CheckSwitchPhase,
   CommandPhase,
   CommonAnimPhase,
+  CoopPartySyncPhase,
   CoopRevivalPhase,
   CoopStartPhase,
   CoopSyncPhase,
