@@ -1,6 +1,8 @@
 /**
- * 合作同步 Phase - Socket.io 版
- * 本地指令选完后 → 发送给队友 → 接收队友指令 → 继续
+ * CoopSyncPhase — 合作模式 P2P 出招同步
+ *
+ * 独立游戏模型：双方都运行完整回合，此 Phase 仅交换各自宝可梦的出招选择。
+ * 收到对方出招后填入 turnCommands[对方位置]，TurnStartPhase 正常执行。
  */
 
 import { globalScene } from "#app/global-scene";
@@ -20,7 +22,7 @@ export class CoopSyncPhase extends Phase {
     const battle = globalScene.currentBattle;
     const localRole = CoopManager.getInstance().getLocalRole();
 
-    // 收集本地指令
+    // 发送本地指令给对方
     const localCmds: any[] = [];
     for (let i = 0; i < globalScene.getField().length; i++) {
       const p = globalScene.getField()[i];
@@ -41,11 +43,17 @@ export class CoopSyncPhase extends Phase {
       }
     }
 
-    lm.sendAction(localCmds);
+    if (localCmds.length > 0) {
+      lm.sendAction(localCmds);
+      console.log("[COOP_SYNC] 发送本地指令:", JSON.stringify(localCmds));
+    }
 
-    // 等待队友指令
+    // 接收对方指令 → 填入 turnCommands
     const handler = (cmds: any[]) => {
       if (!Array.isArray(cmds)) return;
+
+      console.log("[COOP_SYNC] 收到对方指令:", JSON.stringify(cmds));
+
       for (const cmd of cmds) {
         battle.turnCommands[cmd.index] = {
           command: cmd.command ?? Command.FIGHT,
@@ -55,14 +63,23 @@ export class CoopSyncPhase extends Phase {
           skip: cmd.skip ?? false,
         };
       }
+
+      cleanup();
       this.end();
     };
 
     lm.on("action", handler);
 
-    // 60s 超时 → 自动挣扎
-    const tid = setTimeout(() => { this.end(); }, 60000);
-    const origEnd = this.end.bind(this);
-    this.end = () => { clearTimeout(tid); origEnd(); };
+    // 60s 超时 → 强行继续（对方可能已断线）
+    const timeout = setTimeout(() => {
+      console.log("[COOP_SYNC] 超时, 继续执行");
+      cleanup();
+      this.end();
+    }, 60000);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      lm.off("action");
+    };
   }
 }

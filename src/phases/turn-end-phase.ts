@@ -3,10 +3,9 @@ import { globalScene } from "#app/global-scene";
 import { getPokemonNameWithAffix } from "#app/messages";
 import { CoopManager } from "#app/lan/coop-manager";
 import { LanManager } from "#app/lan/lan-manager";
-import type { TurnSnapshot } from "#app/lan/turn-snapshot";
-import { statusEffectToString } from "#app/lan/turn-snapshot";
 import { TerrainType } from "#data/terrain";
 import { BattlerTagLapseType } from "#enums/battler-tag-lapse-type";
+import { BattlerIndex } from "#enums/battler-index";
 import { WeatherType } from "#enums/weather-type";
 import { TurnEndEvent } from "#events/battle-scene";
 import type { Pokemon } from "#field/pokemon";
@@ -81,43 +80,49 @@ export class TurnEndPhase extends FieldPhase {
       globalScene.arena.trySetTerrain(TerrainType.NONE);
     }
 
-    // 合作模式 Host：打包 TurnSnapshot 发送给 Client
-    this.sendCoopSnapshot();
+    // 合作模式：同步敌人 HP —— 交换本回合双方对敌人造成的伤害
+    this.syncEnemyDamage();
 
     this.end();
   }
 
   /**
-   * 合作模式 Host 端：打包战场快照发送给 Client
+   * P2P 敌人HP同步：发送本回合本地宝可梦对敌人造成的伤害，
+   * 接收对方宝可梦对敌人造成的伤害，双方保持敌人血量一致。
    */
-  private sendCoopSnapshot(): void {
+  private syncEnemyDamage(): void {
     const coop = CoopManager.getInstance();
     const lm = LanManager.getInstance();
-    if (!coop.isActive() || !lm.isHost()) return;
+    if (!coop.isActive()) return;
 
-    // 清空事件日志 + 添加 TURN_END 标记
-    const events = lm.flushBattleEvents();
-    events.push({ type: "TURN_END", turn: globalScene.currentBattle.turn });
-
-    console.log("[TURN_END] Host 发送回合结果, events:", events.length, "turn:", globalScene.currentBattle.turn);
-
-    // 构建快照
     const field = globalScene.getField();
-    const snapshot: TurnSnapshot = {
-      turn: globalScene.currentBattle.turn,
-      pokemon: field.map((pokemon, index) => ({
-        index,
-        hp: pokemon?.hp ?? 0,
-        maxHp: pokemon?.getMaxHp?.() ?? 0,
-        status: statusEffectToString(pokemon?.status?.effect),
-        fainted: pokemon?.isFainted?.() ?? false,
-        statStages: pokemon?.summonData?.statStages
-          ? [...pokemon.summonData.statStages]
-          : [0, 0, 0, 0, 0],
-      })),
-    };
 
-    // 发送事件流 + 快照给 Client
-    lm.sendTurnResult(events, snapshot);
+    // 收集我方宝可梦对敌人造成的伤害（敌方位置 HP 变化）
+    const enemyHp: Array<{ index: number; hp: number; maxHp: number }> = [];
+    for (let i = BattlerIndex.ENEMY; i <= BattlerIndex.ENEMY_2; i++) {
+      const enemy = field[i];
+      if (enemy) {
+        enemyHp.push({ index: i, hp: enemy.hp, maxHp: enemy.getMaxHp() });
+      }
+    }
+
+    // 发送给队友
+    lm.send({ type: "enemy-hp-sync", enemyHp, sender: lm.getRole() });
+
+    // 接收队友的敌人HP
+    lm.on("enemy-hp-sync", (data: any) => {
+      if (!data || data.sender === lm.getRole()) return;
+
+      console.log("[TURN_END] 收到队友敌人HP同步:", JSON.stringify(data.enemyHp));
+
+      for (const eh of data.enemyHp) {
+        const enemy = field[eh.index];
+        if (enemy) {
+          // 取最低HP（保守策略：谁打的伤害多就用谁的）
+          enemy.hp = Math.min(enemy.hp, eh.hp);
+          enemy.updateInfo();
+        }
+      }
+    });
   }
 }

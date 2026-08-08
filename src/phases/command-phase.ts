@@ -2,8 +2,6 @@ import type { TurnCommand } from "#app/battle";
 import { globalScene } from "#app/global-scene";
 import { settings } from "#app/global-settings-manager";
 import { speciesDataRegistry } from "#app/global-species-data-registry";
-import { CoopManager } from "#app/lan/coop-manager";
-import { LanManager } from "#app/lan/lan-manager";
 import { getPokemonNameWithAffix } from "#app/messages";
 import { TrappedTag } from "#data/battler-tags";
 import { getDailyEventSeedBoss } from "#data/daily-seed/daily-run";
@@ -12,7 +10,6 @@ import { AbilityId } from "#enums/ability-id";
 import { ArenaTagSide } from "#enums/arena-tag-side";
 import { ArenaTagType } from "#enums/arena-tag-type";
 import { BattleType } from "#enums/battle-type";
-import { BattlerIndex } from "#enums/battler-index";
 import { BattlerTagType } from "#enums/battler-tag-type";
 import { BiomeId } from "#enums/biome-id";
 import { Command } from "#enums/command";
@@ -688,33 +685,6 @@ export class CommandPhase extends FieldPhase {
   }
 
   end() {
-    // 合作模式 Client 端：选完指令后自动发送给 Host
-    this.sendCoopAction();
-
     globalScene.ui.setMode(UiMode.MESSAGE).then(() => super.end());
-  }
-
-  /**
-   * 合作模式 Client 端：将本地选择的指令发送给 Host
-   */
-  private sendCoopAction(): void {
-    const coop = CoopManager.getInstance();
-    const lm = LanManager.getInstance();
-    if (!coop.isActive() || lm.isHost()) return;
-
-    // Client 只发送己方宝可梦的指令 (PLAYER_2 = index 1)
-    // 不遍历全部 field — 避免把 Host ghost 的残留指令也发出去
-    const myIndex = BattlerIndex.PLAYER_2;
-    const cmd = globalScene.currentBattle.turnCommands[myIndex];
-    if (!cmd) return;
-
-    lm.sendAction([{
-      index: myIndex,
-      command: cmd.command,
-      move: cmd.move
-        ? { move: cmd.move.move, targets: cmd.move.targets }
-        : null,
-      skip: cmd.skip,
-    }]);
   }
 }

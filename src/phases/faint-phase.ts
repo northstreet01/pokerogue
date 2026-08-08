@@ -9,7 +9,6 @@ import { SpeciesFormChangeActiveTrigger } from "#data/form-change-triggers";
 import { ArenaTagSide } from "#enums/arena-tag-side";
 import { BattleType } from "#enums/battle-type";
 import { CoopManager } from "#app/lan/coop-manager";
-import { LanManager } from "#app/lan/lan-manager";
 import type { BattlerIndex } from "#enums/battler-index";
 import { BattlerTagLapseType } from "#enums/battler-tag-lapse-type";
 import { BattlerTagType } from "#enums/battler-tag-type";
@@ -110,14 +109,6 @@ export class FaintPhase extends PokemonPhase {
       globalScene.currentBattle.enemyFaintsHistory.push({
         pokemon,
         turn: globalScene.currentBattle.turn,
-      });
-    }
-
-    // 合作模式 Host：记录 FAINT 事件
-    if (CoopManager.getInstance().isActive() && LanManager.getInstance().isHost()) {
-      LanManager.getInstance().logBattleEvent({
-        type: "FAINT",
-        targetIndex: pokemon.getBattlerIndex(),
       });
     }
 

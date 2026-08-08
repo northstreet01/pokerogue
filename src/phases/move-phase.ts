@@ -1,8 +1,6 @@
 import { applyAbAttrs } from "#abilities/apply-ab-attrs";
 import { MOVE_COLOR } from "#app/constants/colors";
 import { globalScene } from "#app/global-scene";
-import { CoopManager } from "#app/lan/coop-manager";
-import { LanManager } from "#app/lan/lan-manager";
 import { getPokemonNameWithAffix } from "#app/messages";
 import { activeOverrides } from "#app/overrides";
 import { PokemonPhase } from "#app/phases/pokemon-phase";
@@ -695,17 +693,6 @@ export class MovePhase extends PokemonPhase {
     // Moves with pre-use messages (Magnitude, Chilly Reception, Fickle Beam, etc.) always display their messages even on failure
     // TODO: This assumes single target for message funcs - is this sustainable?
     applyMoveAttrs("PreMoveMessageAttr", pokemon, this.getActiveTargetPokemon()[0], pokemonMove.getMove());
-
-    // 合作模式 Host：记录技能使用事件
-    if (CoopManager.getInstance().isActive() && LanManager.getInstance().isHost()) {
-      LanManager.getInstance().logBattleEvent({
-        type: "MOVE_USED",
-        userIndex: pokemon.getBattlerIndex(),
-        moveId: moveId,
-        moveName: pokemonMove.getName(),
-        targets: this.targets as number[],
-      });
-    }
   }
 
   /**
