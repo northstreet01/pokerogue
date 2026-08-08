@@ -48,7 +48,6 @@ export class TurnInitPhase extends FieldPhase {
     handleMysteryEncounterBattleStartEffects();
     if (handleMysteryEncounterTurnStartEffects()) { this.end(); return; }
 
-    const coopManager = CoopManager.getInstance();
     const isCoop = coopManager.isActive();
     const localRole = isCoop ? coopManager.getLocalRole() : null;
 
