@@ -1,6 +1,6 @@
 /**
- * WaitTurnResultPhase — Client 端接收 Host 回合结果
- * 应用 HP/状态、移除昏厥精灵、检测波次结束
+ * WaitTurnResultPhase — Client 端轮询等待 Host turn-result（30s 超时）
+ * 应用 HP/状态、移除昏厥精灵
  */
 
 import { globalScene } from "#app/global-scene";
@@ -16,47 +16,25 @@ import i18next from "i18next";
 
 export class WaitTurnResultPhase extends Phase {
   public readonly phaseName = "WaitTurnResultPhase";
+  private startTime = Date.now();
 
   override start(): void {
-    const coop = CoopManager.getInstance();
-    const lm = LanManager.getInstance();
-    if (!coop.isActive()) { this.end(); return; }
+    if (!CoopManager.getInstance().isActive()) { this.end(); return; }
+    this.poll();
+  }
 
-    const timeout = setTimeout(() => {
-      if (!resolved) { console.log("[WAIT_RESULT] 30s超时"); lm.off("turn-result"); lm.off("wave-complete"); this.end(); }
-    }, 30000);
-
-    let resolved = false;
-
-    const goNextWave = (waveIndex: number) => {
-      console.log("[WAIT_RESULT] 进入下一波:", waveIndex);
-      resolved = true;
-      clearTimeout(timeout);
-      lm.off("turn-result");
-      lm.off("wave-complete");
-      globalScene.phaseManager.clearPhaseQueue();
-      globalScene.phaseManager.pushNew("EncounterPhase", false);
-      this.end();
-    };
-
-    // 检查缓存的 wave-complete
-    const pendingWave = lm.getPendingWaveComplete();
-    if (pendingWave != null) { goNextWave(pendingWave); return; }
-
-    lm.on("wave-complete", (wi: number) => {
-      if (!resolved) goNextWave(wi);
-    });
-
-    const processResult = (data: any) => {
-      if (resolved) return;
+  private poll(): void {
+    const data = LanManager.getInstance().getPendingTurnResult?.();
+    if (data) {
       const result: TurnResult = data.result || data;
-      if (!result?.finalState) return;
+      if (!result?.finalState) { this.end(); return; }
 
-      console.log("[WAIT_RESULT] turn:", result.turn, "hp:", result.finalState.map(s => `${s.index}=${s.hp}`).join(","));
+      console.log("[WAIT_RESULT] turn:", result.turn,
+        "hp:", result.finalState.map(s => `${s.index}=${s.hp}`).join(","));
 
       const field = globalScene.getField();
 
-      // 显示技能使用消息
+      // 显示出招消息
       for (const evt of result.events) {
         if (evt.type === "MOVE") {
           const user = field[evt.user];
@@ -69,51 +47,54 @@ export class WaitTurnResultPhase extends Phase {
         }
       }
 
-      // 应用最终状态 + 移除昏厥精灵
-      let anyFainted = false;
+      // 应用状态
       for (const ps of result.finalState) {
         const pokemon = field[ps.index];
         if (!pokemon) continue;
-
         pokemon.hp = Math.max(0, ps.hp);
-
         if (ps.status) {
-          const effect = StatusEffect[ps.status as keyof typeof StatusEffect];
-          if (effect != null) pokemon.status = new Status(effect);
+          const e = StatusEffect[ps.status as keyof typeof StatusEffect];
+          if (e != null) pokemon.status = new Status(e);
         } else if (!ps.status && pokemon.status) {
           pokemon.status = null;
         }
-
         if (ps.fainted && !pokemon.isFainted()) {
-          anyFainted = true;
           globalScene.phaseManager.queueMessage(
             i18next.t("battle:fainted", { pokemonNameWithAffix: getPokemonNameWithAffix(pokemon) }),
             null, true,
           );
-          // 强制隐藏 + 标记离场
           pokemon.setVisible(false);
-          pokemon.hp = 0;
         }
-
         pokemon.updateInfo();
       }
 
-      // 检查是否所有敌人都死了
+      // 检查波次结束
       const enemiesAlive = field.slice(BattlerIndex.ENEMY).filter(p => p && p.isActive() && !p.isFainted());
       if (enemiesAlive.length === 0) {
         console.log("[WAIT_RESULT] 所有敌人昏厥, 等待 wave-complete");
-        // 不清理 wave-complete 监听器，等 Host 发 wave-complete
-        lm.off("turn-result");
-        // wave-complete 监听器已经在 start 中注册，或从缓存获取
+        // 继续轮询 wave-complete
+        this.pollWaveComplete();
         return;
       }
 
-      lm.off("turn-result");
       this.end();
-    };
+      return;
+    }
 
-    lm.on("turn-result", processResult);
-    const pending = lm.getPendingTurnResult?.();
-    if (pending) processResult(pending);
+    if (Date.now() - this.startTime > 30000) { this.end(); return; }
+    setTimeout(() => this.poll(), 100);
+  }
+
+  private pollWaveComplete(): void {
+    const wi = LanManager.getInstance().getPendingWaveComplete();
+    if (wi != null) {
+      console.log("[WAIT_RESULT] 进入下一波:", wi);
+      globalScene.phaseManager.clearPhaseQueue();
+      globalScene.phaseManager.pushNew("EncounterPhase", false);
+      this.end();
+      return;
+    }
+    if (Date.now() - this.startTime > 60000) { this.end(); return; }
+    setTimeout(() => this.pollWaveComplete(), 100);
   }
 }
