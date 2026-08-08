@@ -24,8 +24,13 @@ export class RemoteWaitPhase extends Phase {
     const battle = globalScene.currentBattle;
 
     const remoteIndex = BattlerIndex.PLAYER_2;
-    const remote = globalScene.getField()[remoteIndex];
-    if (!remote?.isActive()) { this.end(); return; }
+    const field = globalScene.getField();
+    console.log("[REMOTE_WAIT] field:", field.map((p, i) => `${i}:${p?.getNameToRender?.() ?? 'null'}(active=${p?.isActive?.()})`).join(", "));
+    const remote = field[remoteIndex];
+    if (!remote?.isActive()) {
+      console.log("[REMOTE_WAIT] 位置1的精灵不活跃, 跳过等待");
+      this.end(); return;
+    }
 
     const timeout = setTimeout(() => {
       if (!resolved) {
@@ -47,9 +52,14 @@ export class RemoteWaitPhase extends Phase {
       resolved = true;
       cleanup();
       for (const cmd of cmds) {
+        console.log("[REMOTE_WAIT] 填入 turnCommands[%d]: cmd=%d move=%d targets=%j",
+          cmd.index, cmd.command, cmd.move?.move, cmd.move?.targets);
         battle.turnCommands[cmd.index] = {
           command: cmd.command ?? Command.FIGHT,
-          move: cmd.move ? { move: cmd.move.move ?? MoveId.STRUGGLE, targets: cmd.move.targets ?? [], useMode: MoveUseMode.NORMAL } : { move: MoveId.STRUGGLE, targets: [], useMode: MoveUseMode.NORMAL },
+          move: cmd.move
+            ? { move: cmd.move.move ?? MoveId.STRUGGLE, targets: cmd.move.targets ?? [], useMode: MoveUseMode.NORMAL }
+            : { move: MoveId.STRUGGLE, targets: [], useMode: MoveUseMode.NORMAL },
+          targets: cmd.move?.targets ?? [],
           skip: cmd.skip ?? false,
         };
       }
