@@ -76,9 +76,19 @@ export class TurnInitPhase extends FieldPhase {
       }
     });
 
-    // 合作模式：推 CoopSyncPhase 交换出招 → 双方各自结算
-    if (isCoop) globalScene.phaseManager.pushNew("CoopSyncPhase");
-    globalScene.phaseManager.pushNew("TurnStartPhase");
+    // Host 权威：Host 等 Client 指令 → 结算 → 下发结果
+    if (isCoop) {
+      if (localRole === "host") {
+        globalScene.phaseManager.pushNew("RemoteWaitPhase");
+        globalScene.phaseManager.pushNew("TurnStartPhase");
+        globalScene.phaseManager.pushNew("SendTurnResultPhase");
+      } else {
+        globalScene.phaseManager.pushNew("SendActionPhase");
+        globalScene.phaseManager.pushNew("WaitTurnResultPhase");
+      }
+    } else {
+      globalScene.phaseManager.pushNew("TurnStartPhase");
+    }
 
     this.end();
   }

@@ -13,6 +13,7 @@ export class LanManager {
   private _opponentConnected = false;
   private listeners: Record<string, EventHandler[]> = {};
   private _pendingAction: any[] | null = null;
+  private _pendingTurnResult: any = null;
   private _pendingPartySync: { party: any[]; sender: string } | null = null;
 
   private constructor() {
@@ -40,6 +41,9 @@ export class LanManager {
         this.emit("action", msg.commands);
       } else if (msg.type === "faint") {
         this.emit("faint", msg.allFainted);
+      } else if (msg.type === "turn-result") {
+        this._pendingTurnResult = msg.result;
+        this.emit("turn-result", msg);
       } else if (msg.type === "party-sync") {
         // 缓存（防竞态：消息到达时 CoopPartySyncPhase 可能还没启动）
         this._pendingPartySync = { party: msg.party, sender: msg.sender };
@@ -86,6 +90,9 @@ export class LanManager {
 
   /** 获取缓存的对战指令（消费后清除，防竞态） */
   getPendingAction(): any[] | null { const a = this._pendingAction; this._pendingAction = null; return a; }
+
+  /** 获取缓存的回合结果（消费后清除） */
+  getPendingTurnResult(): any { const r = this._pendingTurnResult; this._pendingTurnResult = null; return r; }
 
   /** 获取缓存的队伍同步数据（消费后清除） */
   getPendingPartySync(): { party: any[]; sender: string } | null {
