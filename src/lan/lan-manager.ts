@@ -187,6 +187,8 @@ export class LanManager {
       clientParty: null,
     };
     this.client.send(MessageType.GAME_START, payload);
+    // Host 自己也要触发游戏开始
+    this.events.onGameStart?.(payload);
   }
 
   /**
