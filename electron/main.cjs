@@ -9,7 +9,7 @@ const path = require("path");
 const { TcpServer, TCP_PORT } = require("./tcp-server.cjs");
 const { TcpClient } = require("./tcp-client.cjs");
 
-const HTTP_PORT = 8000;
+const HTTP_PORT = parseInt(process.argv[2] || "8000", 10);
 
 let tcpConnection = null;
 
@@ -19,9 +19,9 @@ let tcpConnection = null;
 ipcMain.handle("lan:host", async () => {
   return new Promise((resolve) => {
     tcpConnection = new TcpServer(
-      (msg) => { getMainWindow()?.webContents.send("lan:message", msg); },
-      () => { getMainWindow()?.webContents.send("lan:connected"); },
-      () => { getMainWindow()?.webContents.send("lan:disconnected"); },
+      (msg) => { console.log("[Main] TCP→IPC 转发:", msg.type); getMainWindow()?.webContents.send("lan:message", msg); },
+      () => { console.log("[Main] TCP客户端已连接"); getMainWindow()?.webContents.send("lan:connected"); },
+      () => { console.log("[Main] TCP客户端断开"); getMainWindow()?.webContents.send("lan:disconnected"); },
     );
     tcpConnection.start();
     resolve({ port: TCP_PORT });
@@ -32,12 +32,13 @@ ipcMain.handle("lan:host", async () => {
 ipcMain.handle("lan:join", async (_event, host, port) => {
   return new Promise((resolve, reject) => {
     tcpConnection = new TcpClient(
-      (msg) => { getMainWindow()?.webContents.send("lan:message", msg); },
+      (msg) => { console.log("[Main] TCP→IPC 转发:", msg.type); getMainWindow()?.webContents.send("lan:message", msg); },
       () => {
+        console.log("[Main] 已连接到TCP服务器");
         getMainWindow()?.webContents.send("lan:connected");
         resolve({ success: true });
       },
-      () => { getMainWindow()?.webContents.send("lan:disconnected"); },
+      () => { console.log("[Main] TCP连接断开"); getMainWindow()?.webContents.send("lan:disconnected"); },
     );
     tcpConnection.connect(host, port);
     // 5秒超时
@@ -47,6 +48,7 @@ ipcMain.handle("lan:join", async (_event, host, port) => {
 
 // 发送消息到对方
 ipcMain.on("lan:send", (_event, msg) => {
+  console.log("[Main] IPC→TCP 发送:", msg.type);
   tcpConnection?.send(msg);
 });
 

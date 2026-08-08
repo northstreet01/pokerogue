@@ -35,14 +35,16 @@ export class LanManager {
     api.onConnected(() => { this._connected = true; this.emit("connected"); });
     api.onDisconnected(() => { this._connected = false; this._opponentConnected = false; this.emit("disconnected"); });
     api.onMessage((msg: any) => {
+      console.log("[LanManager] 收到消息:", msg.type, msg);
       if (msg.type === "hello") {
         this._opponentConnected = true;
+        console.log("[LanManager] 对手已连接, 触发 opponent-joined");
         this.emit("opponent-joined", msg.name);
-        // 自动回复打招呼（让对方也知道我们在线）
         this.send({ type: "hello", name: this.role === "host" ? "Host" : "Client" });
       } else if (msg.type === "ready") {
         this.emit("opponent-ready");
       } else if (msg.type === "start") {
+        console.log("[LanManager] 收到游戏开始, seed:", msg.seed);
         this.emit("game-start", msg.seed);
       } else if (msg.type === "action") {
         this.emit("action", msg.commands);
