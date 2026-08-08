@@ -16,29 +16,20 @@ export class TurnInitPhase extends FieldPhase {
     super.start();
 
     globalScene.getPlayerField().forEach(p => {
-      // If this pokemon is in play and evolved into something illegal under the current challenge, force a switch
       if (p.isOnField() && !p.isAllowedInBattle()) {
         globalScene.phaseManager.queueMessage(
-          i18next.t("challenges:illegalEvolution", { pokemon: p.name }),
-          null,
-          true,
+          i18next.t("challenges:illegalEvolution", { pokemon: p.name }), null, true,
         );
-
         const allowedPokemon = globalScene.getPokemonAllowedInBattle();
-
         if (allowedPokemon.length === 0) {
-          // If there are no longer any legal pokemon in the party, game over.
           globalScene.phaseManager.clearPhaseQueue();
           globalScene.phaseManager.unshiftNew("GameOverPhase");
         } else if (
           allowedPokemon.length >= globalScene.currentBattle.getBattlerCount()
           || (globalScene.currentBattle.double && !allowedPokemon[0].isActive(true))
         ) {
-          // If there is at least one pokemon in the back that is legal to switch in, force a switch.
           p.switchOut();
         } else {
-          // If there are no pokemon in the back but we're not game overing, just hide the pokemon.
-          // This should only happen in double battles.
           p.leaveField();
         }
         if (allowedPokemon.length === 1 && globalScene.currentBattle.double) {
@@ -48,14 +39,8 @@ export class TurnInitPhase extends FieldPhase {
     });
 
     globalScene.eventTarget.dispatchEvent(new TurnInitEvent());
-
     handleMysteryEncounterBattleStartEffects();
-
-    // If true, will skip remainder of current phase (and not queue CommandPhases etc.)
-    if (handleMysteryEncounterTurnStartEffects()) {
-      this.end();
-      return;
-    }
+    if (handleMysteryEncounterTurnStartEffects()) { this.end(); return; }
 
     const coopManager = CoopManager.getInstance();
     const isCoop = coopManager.isActive();
@@ -66,20 +51,18 @@ export class TurnInitPhase extends FieldPhase {
         if (pokemon.isPlayer()) {
           globalScene.currentBattle.addParticipant(pokemon as PlayerPokemon);
         }
-
         pokemon.resetTurnData();
 
         if (pokemon.isPlayer()) {
-          // 合作模式：远程玩家的宝可梦用 RemotePlayerCommandPhase
+          // 合作模式：只为本地宝可梦显示指令菜单
           if (isCoop) {
-            const isRemotePosition =
-              (localRole === "host" && i === BattlerIndex.PLAYER_2)
-              || (localRole === "client" && i === BattlerIndex.PLAYER);
-            if (isRemotePosition) {
-              globalScene.phaseManager.pushNew("RemotePlayerCommandPhase", i);
-            } else {
+            const isLocal =
+              (localRole === "host" && i === BattlerIndex.PLAYER)
+              || (localRole === "client" && i === BattlerIndex.PLAYER_2);
+            if (isLocal) {
               globalScene.phaseManager.pushNew("CommandPhase", i);
             }
+            // 远程宝可梦的指令由 CoopSyncPhase 从网络接收
           } else {
             globalScene.phaseManager.pushNew("CommandPhase", i);
           }
@@ -89,8 +72,12 @@ export class TurnInitPhase extends FieldPhase {
       }
     });
 
-    globalScene.phaseManager.pushNew("TurnStartPhase");
+    // 合作模式：指令同步（发送本地指令 + 等待远程指令）
+    if (isCoop) {
+      globalScene.phaseManager.pushNew("CoopSyncPhase");
+    }
 
+    globalScene.phaseManager.pushNew("TurnStartPhase");
     this.end();
   }
 }
