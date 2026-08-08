@@ -38,6 +38,8 @@ export class LanManager {
       if (msg.type === "hello") {
         this._opponentConnected = true;
         this.emit("opponent-joined", msg.name);
+        // 自动回复打招呼（让对方也知道我们在线）
+        this.send({ type: "hello", name: this.role === "host" ? "Host" : "Client" });
       } else if (msg.type === "ready") {
         this.emit("opponent-ready");
       } else if (msg.type === "start") {

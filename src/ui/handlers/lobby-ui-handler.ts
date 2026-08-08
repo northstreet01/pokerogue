@@ -66,8 +66,7 @@ export class LobbyUiHandler extends UiHandler {
     });
     lm.on("game-start", (seed: string) => {
       globalScene.ui.setMode(UiMode.MESSAGE);
-      // TODO: push CoopStartPhase with seed
-      console.log("[Lobby] 游戏开始, seed:", seed);
+      globalScene.phaseManager.pushNew("CoopStartPhase", seed);
     });
 
     // 对方可能已经在了
@@ -104,9 +103,9 @@ export class LobbyUiHandler extends UiHandler {
         if (lm.isHost() && this.opponentHere) {
           const seed = Math.random().toString(36).slice(2, 10);
           lm.sendStart(seed);
-          lm.on("game-start", () => {
-            globalScene.ui.setMode(UiMode.MESSAGE);
-          });
+          // Host 自己也启动游戏
+          globalScene.ui.setMode(UiMode.MESSAGE);
+          globalScene.phaseManager.pushNew("CoopStartPhase", seed);
         }
         return true;
       }
