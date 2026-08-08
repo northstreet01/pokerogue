@@ -1,6 +1,6 @@
 /**
  * WaitTurnResultPhase — Client 端接收 Host 回合结果
- * 直接应用 finalState（不推额外 Phase 防双重扣血）
+ * 应用 HP/状态、移除昏厥精灵、检测波次结束
  */
 
 import { globalScene } from "#app/global-scene";
@@ -10,6 +10,7 @@ import { CoopManager } from "./coop-manager";
 import { Status } from "#data/status-effect";
 import { StatusEffect } from "#enums/status-effect";
 import { getPokemonNameWithAffix } from "#app/messages";
+import { BattlerIndex } from "#enums/battler-index";
 import type { TurnResult } from "./turn-result";
 import i18next from "i18next";
 
@@ -25,7 +26,17 @@ export class WaitTurnResultPhase extends Phase {
       if (!resolved) { console.log("[WAIT_RESULT] 30s超时"); cleanup(); this.end(); }
     }, 30000);
 
-    const cleanup = () => { clearTimeout(timeout); lm.off("turn-result"); };
+    const cleanup = () => { clearTimeout(timeout); lm.off("turn-result"); lm.off("wave-complete"); };
+
+    // 波次结束：Host 通知 Client 进入下一波
+    lm.on("wave-complete", (waveIndex: number) => {
+      console.log("[WAIT_RESULT] 波次完成, 下一波:", waveIndex);
+      cleanup();
+      // 结束当前战斗，进入下一波 EncounterPhase
+      globalScene.phaseManager.clearPhaseQueue();
+      globalScene.phaseManager.pushNew("EncounterPhase", false);
+      this.end();
+    });
 
     let resolved = false;
     const handler = (data: any) => {
@@ -33,10 +44,8 @@ export class WaitTurnResultPhase extends Phase {
       const result: TurnResult = data.result || data;
       if (!result?.finalState) return;
       resolved = true;
-      cleanup();
 
-      console.log("[WAIT_RESULT] turn:", result.turn, "events:", result.events.length,
-        "hp:", result.finalState.map(s => `${s.index}=${s.hp}`).join(","));
+      console.log("[WAIT_RESULT] turn:", result.turn, "hp:", result.finalState.map(s => `${s.index}=${s.hp}`).join(","));
 
       const field = globalScene.getField();
 
@@ -46,32 +55,19 @@ export class WaitTurnResultPhase extends Phase {
           const user = field[evt.user];
           if (user) {
             globalScene.phaseManager.queueMessage(
-              i18next.t("battle:useMove", {
-                pokemonNameWithAffix: getPokemonNameWithAffix(user),
-                moveName: "",
-              }),
+              i18next.t("battle:useMove", { pokemonNameWithAffix: getPokemonNameWithAffix(user), moveName: "" }),
               500,
             );
           }
         }
       }
 
-      // 2. 直接应用最终状态（不推额外 Phase，避免双重扣血）
+      // 2. 应用最终状态
       for (const ps of result.finalState) {
         const pokemon = field[ps.index];
         if (!pokemon) continue;
 
-        const oldHp = pokemon.hp;
         pokemon.hp = Math.max(0, ps.hp);
-
-        // 显示扣血/回血消息
-        const diff = oldHp - ps.hp;
-        if (diff > 0) {
-          globalScene.phaseManager.queueMessage(
-            i18next.t("battle:hitResultEffective", { pokemonName: getPokemonNameWithAffix(pokemon) }),
-            null,
-          );
-        }
 
         // 状态同步
         if (ps.status && !pokemon.status) {
@@ -81,19 +77,41 @@ export class WaitTurnResultPhase extends Phase {
           pokemon.status = null;
         }
 
-        // 昏厥
-        if (ps.fainted && !pokemon.isFainted()) {
+        // 昏厥：移除精灵
+        if (ps.fainted && pokemon.isActive()) {
           globalScene.phaseManager.queueMessage(
             i18next.t("battle:fainted", { pokemonNameWithAffix: getPokemonNameWithAffix(pokemon) }),
             null, true,
           );
+          pokemon.leaveField(false);
         }
 
         pokemon.updateInfo();
       }
 
-      // 3. 刷新 UI
-      globalScene.updateGameInfo();
+      // 3. 检查是否所有敌人都昏厥了
+      const allEnemiesFainted = field.slice(BattlerIndex.ENEMY).every(
+        p => !p || p.isFainted() || !p.isActive()
+      );
+      const anyEnemyAlive = field.slice(BattlerIndex.ENEMY).some(
+        p => p && p.isActive() && !p.isFainted()
+      );
+
+      if (!anyEnemyAlive && allEnemiesFainted) {
+        console.log("[WAIT_RESULT] 所有敌人昏厥, 等待 wave-complete");
+        cleanup();
+        // 不 end() —— 等 wave-complete 消息来推进
+        lm.on("wave-complete", (wi: number) => {
+          console.log("[WAIT_RESULT] 波次完成, 下一波:", wi);
+          lm.off("wave-complete");
+          globalScene.phaseManager.clearPhaseQueue();
+          globalScene.phaseManager.pushNew("EncounterPhase", false);
+          this.end();
+        });
+        return;
+      }
+
+      cleanup();
       this.end();
     };
 
