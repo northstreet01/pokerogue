@@ -53,6 +53,8 @@ export class TurnInitPhase extends FieldPhase {
       }
     }
 
+    // GBA 对称模型：双方流程完全一致
+    // 各自只给自己槽位推 CommandPhase
     globalScene.getField().forEach((pokemon, i) => {
       if (pokemon?.isActive()) {
         if (pokemon.isPlayer()) {
@@ -62,38 +64,21 @@ export class TurnInitPhase extends FieldPhase {
 
         if (pokemon.isPlayer()) {
           if (isCoop) {
-            const isLocal =
-              (localRole === "host" && i === BattlerIndex.PLAYER)
-              || (localRole === "client" && i === BattlerIndex.PLAYER_2);
-            if (isLocal) {
-              globalScene.phaseManager.pushNew("CommandPhase", i);
-            }
+            const isLocal = (localRole === "host" && i === BattlerIndex.PLAYER)
+                         || (localRole === "client" && i === BattlerIndex.PLAYER_2);
+            if (isLocal) globalScene.phaseManager.pushNew("CommandPhase", i);
           } else {
             globalScene.phaseManager.pushNew("CommandPhase", i);
           }
-        } else if (!isCoop || localRole === "host") {
-          // EnemyCommandPhase 只在 Host 运行（Client 不需要，Host 结算后通过结果同步）
+        } else {
           globalScene.phaseManager.pushNew("EnemyCommandPhase", i - BattlerIndex.ENEMY);
         }
       }
     });
 
-    if (isCoop) {
-      if (localRole === "host") {
-        // Host: 命令收集阶段
-        // CommandPhase(Host) → EnemyCommandPhases → RemoteWaitPhase(等Client) → TurnStartPhase(结算)
-        // SendTurnResultPhase 由 TurnStartPhase 内部的 queueTurnEndPhases() 自动推入
-        globalScene.phaseManager.pushNew("RemoteWaitPhase");
-        globalScene.phaseManager.pushNew("TurnStartPhase");
-      } else {
-        // Client: 命令选择 → 发送 → 等待Host结算
-        // CommandPhase(Client) → SendActionPhase → WaitTurnResultPhase → ApplyTurnResultPhase
-        globalScene.phaseManager.pushNew("SendActionPhase");
-        globalScene.phaseManager.pushNew("WaitTurnResultPhase");
-      }
-    } else {
-      globalScene.phaseManager.pushNew("TurnStartPhase");
-    }
+    // 合作模式：推 CoopSyncPhase 交换出招 → 双方各自结算
+    if (isCoop) globalScene.phaseManager.pushNew("CoopSyncPhase");
+    globalScene.phaseManager.pushNew("TurnStartPhase");
 
     this.end();
   }

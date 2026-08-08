@@ -13,9 +13,7 @@ export class LanManager {
   private _opponentConnected = false;
   private listeners: Record<string, EventHandler[]> = {};
   private _pendingAction: any[] | null = null;
-  private _pendingTurnResult: any = null;
   private _pendingPartySync: { party: any[]; sender: string } | null = null;
-  private _pendingWaveComplete: number | null = null;
 
   private constructor() {
     window.lanApi?.onConnected(() => {
@@ -46,14 +44,6 @@ export class LanManager {
         // 缓存（防竞态：消息到达时 CoopPartySyncPhase 可能还没启动）
         this._pendingPartySync = { party: msg.party, sender: msg.sender };
         this.emit("party-sync", msg.party, msg.sender);
-      } else if (msg.type === "enemy-hp-sync") {
-        this.emit("enemy-hp-sync", msg);
-      } else if (msg.type === "turn-result") {
-        this._pendingTurnResult = msg.result;
-        this.emit("turn-result", msg);
-      } else if (msg.type === "wave-complete") {
-        this._pendingWaveComplete = msg.waveIndex;
-        this.emit("wave-complete", msg.waveIndex);
       }
     });
   }
@@ -93,21 +83,13 @@ export class LanManager {
   sendAction(commands: any[]): void { this.send({ type: "action", commands }); }
   sendFaint(allFainted: boolean): void { this.send({ type: "faint", allFainted }); }
   sendPartySync(party: any[]): void { this.send({ type: "party-sync", party }); }
-  sendWaveComplete(waveIndex: number): void { this.send({ type: "wave-complete", waveIndex }); }
 
   /** 获取缓存的对战指令（消费后清除，防竞态） */
   getPendingAction(): any[] | null { const a = this._pendingAction; this._pendingAction = null; return a; }
 
-  /** 获取缓存的回合结果（消费后清除，防竞态） */
-  getPendingTurnResult(): any { const r = this._pendingTurnResult; this._pendingTurnResult = null; return r; }
-
   /** 获取缓存的队伍同步数据（消费后清除） */
   getPendingPartySync(): { party: any[]; sender: string } | null {
     const p = this._pendingPartySync; this._pendingPartySync = null; return p;
-  }
-
-  getPendingWaveComplete(): number | null {
-    const w = this._pendingWaveComplete; this._pendingWaveComplete = null; return w;
   }
 
   // ===== 状态 =====

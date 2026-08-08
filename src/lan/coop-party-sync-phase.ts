@@ -23,9 +23,12 @@ export class CoopPartySyncPhase extends Phase {
 
     const myParty = globalScene.getPlayerParty().map(p => ({
       speciesId: p.species.speciesId,
-      level: p.level, hp: p.hp,
-      stats: [...p.stats], name: p.getNameToRender(),
-      formIndex: p.formIndex, gender: p.gender, shiny: p.shiny,
+      level: p.level, hp: p.hp, maxHp: p.getMaxHp(),
+      stats: [...p.stats], ivs: p.ivs ? [...p.ivs] : [15,15,15,15,15,15],
+      name: p.getNameToRender(), formIndex: p.formIndex,
+      gender: p.gender, shiny: p.shiny, nature: p.nature,
+      abilityIndex: p.abilityIndex,
+      moveset: p.getMoveset().map(m => ({ moveId: m.moveId, ppUsed: m.ppUsed, maxPp: m.getMovePp() })),
     }));
     console.log("[PARTY_SYNC] 我方队伍:", myParty.map(p => `${p.name}(${p.speciesId})`).join(", "));
 
@@ -57,12 +60,20 @@ export class CoopPartySyncPhase extends Phase {
         const lead = partyData[0];
         const species = speciesDataRegistry.getSpecies(lead.speciesId);
         if (species) {
-          const ghost = globalScene.addPlayerPokemon(species, lead.level, 0, lead.formIndex, lead.gender, lead.shiny, 0, [15, 15, 15, 15, 15, 15], 0);
-          ghost.hp = lead.hp;
-          (ghost as any)._coopGhost = true; // 标记为 ghost，UI 层可据此过滤
+          const ghost = globalScene.addPlayerPokemon(
+            species, lead.level, lead.abilityIndex ?? 0, lead.formIndex,
+            lead.gender, lead.shiny, 0, lead.ivs ?? [15,15,15,15,15,15],
+            lead.nature ?? 0,
+          );
+          ghost.hp = Math.min(lead.hp, lead.maxHp ?? lead.hp);
+          // 设置技能（精确副本）
+          if (lead.moveset) {
+            ghost.tryPopulateMoveset(lead.moveset, true);
+          }
+          (ghost as any)._coopGhost = true;
           party.push(ghost);
           CoopManager.getInstance().setRemoteGhostIndex(party.length - 1);
-          console.log("[PARTY_SYNC] 添加 ghost:", lead.name);
+          console.log("[PARTY_SYNC] 添加 ghost:", lead.name, "moves:", lead.moveset?.length);
         }
       }
 

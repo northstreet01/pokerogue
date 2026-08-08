@@ -3,7 +3,6 @@ import { globalScene } from "#app/global-scene";
 import { modifierTypes } from "#data/data-lists";
 import { BattleType } from "#enums/battle-type";
 import { CoopManager } from "#app/lan/coop-manager";
-import { LanManager } from "#app/lan/lan-manager";
 import type { BattlerIndex } from "#enums/battler-index";
 import { ClassicFixedBossWaves } from "#enums/fixed-boss-waves";
 import { ModifierTier } from "#enums/modifier-tier";
@@ -136,10 +135,7 @@ export class VictoryPhase extends PokemonPhase {
 
         globalScene.phaseManager.pushNew("NewBattlePhase");
 
-        // 合作模式 Host：通知 Client 波次结束
-        if (isCoop && LanManager.getInstance().isHost()) {
-          LanManager.getInstance().sendWaveComplete(currentWaveIndex + 1);
-        }
+        // 合作模式：双方各自独立进入下一波（GBA 对称模型）
       } else {
         globalScene.currentBattle.battleType = BattleType.CLEAR;
         globalScene.score += gameMode.getClearScoreBonus();
