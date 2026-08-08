@@ -72,10 +72,24 @@ wss.on("connection", (ws) => {
           }),
         );
 
+        // 告诉新玩家：当前已有哪些人在线
+        for (const [, c] of clients) {
+          if (c !== client) {
+            ws.send(
+              JSON.stringify({
+                type: "PLAYER_JOINED",
+                payload: { playerId: c.id, playerName: c.name, ready: c.ready },
+                seq: 0,
+                timestamp: Date.now(),
+              }),
+            );
+          }
+        }
+
         // 通知其他客户端有新玩家加入
         broadcast(ws, {
           type: "PLAYER_JOINED",
-          payload: { playerId: client.id, playerName: client.name },
+          payload: { playerId: client.id, playerName: client.name, ready: false },
           seq: 0,
           timestamp: Date.now(),
         });

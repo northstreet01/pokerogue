@@ -349,6 +349,7 @@ export class LanManager {
 
   private handleHelloAck(payload: { assignedId: string; hostName: string; gameVersion: string }): void {
     this.myPlayerId = payload.assignedId;
+    this.client.setPlayerId(payload.assignedId); // 同步 LanClient 的 ID
 
     if (payload.gameVersion !== this.gameVersion) {
       this.events.onError?.("VERSION_MISMATCH", `版本不一致! Host: ${payload.gameVersion}, 你: ${this.gameVersion}`);

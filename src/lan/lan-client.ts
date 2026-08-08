@@ -50,6 +50,10 @@ export class LanClient {
     return this.playerId;
   }
 
+  setPlayerId(id: string): void {
+    this.playerId = id;
+  }
+
   /**
    * 连接到服务器
    */
