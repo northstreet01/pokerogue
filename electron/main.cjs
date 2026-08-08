@@ -46,11 +46,9 @@ ipcMain.handle("lan:host", async () => {
     io.on("connection", (sock) => {
       console.log("[Socket.io] 客户端已连接:", sock.id);
 
-      // 转发消息：收到后广播给所有人（包括发送者自己，因为 Host 也需要收到）
+      // 转发消息：广播给其他人（除了发送者）
       sock.on("lan-message", (msg) => {
-        // 先让 Host 的渲染进程收到
-        mainWindow?.webContents.send("lan:message", msg);
-        // 再广播给其他客户端
+        // 广播给除发送者外的所有客户端（Host 自己通过本地 socket 也能收到）
         sock.broadcast.emit("lan-message", msg);
       });
 
@@ -108,10 +106,11 @@ ipcMain.handle("lan:join", async (_event, host, port) => {
 
 // ========== IPC 发送 ==========
 ipcMain.on("lan:send", (_event, msg) => {
-  // 广播给房间内所有人（除了自己，或者包括自己？Host 需要）
   if (io) {
-    io.emit("lan-message", msg); // 广播给所有客户端（包括 Host 自己）
+    // Host: 广播给所有客户端（除 Host 自己）
+    io.emit("lan-message", msg);
   } else if (socket) {
+    // Client: 发给 Host 的服务器
     socket.emit("lan-message", msg);
   }
 });

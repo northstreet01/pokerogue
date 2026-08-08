@@ -35,7 +35,7 @@ export class LanManager {
       } else if (msg.type === "faint") {
         this.emit("faint", msg.allFainted);
       } else if (msg.type === "party-sync") {
-        this.emit("party-sync", msg.party);
+        this.emit("party-sync", msg.party, msg.sender);
       }
     });
   }

@@ -23,10 +23,16 @@ export class CoopPartySyncPhase extends Phase {
       stats: [...p.stats], name: p.getNameToRender(),
       formIndex: p.formIndex, gender: p.gender, shiny: p.shiny,
     }));
-    lm.send({ type: "party-sync", party: myParty });
+    const myFirstSpecies = myParty[0]?.speciesId;
+    lm.send({ type: "party-sync", party: myParty, sender: lm.getRole() });
 
-    // 等待对方队伍
-    lm.on("party-sync", (party: any[]) => {
+    // 等待对方队伍（忽略自己发出的）
+    lm.on("party-sync", (party: any[], sender?: string) => {
+      // 忽略自己发出的消息（Socket.io 广播会回弹）
+      if (sender === lm.getRole()) return;
+      // 忽略和自己的第一只宝可梦相同的（双重保险）
+      if (party[0]?.speciesId === myFirstSpecies) return;
+
       for (const pd of party) {
         const species = globalScene.speciesDataRegistry.getSpecies(pd.speciesId);
         if (!species) continue;
