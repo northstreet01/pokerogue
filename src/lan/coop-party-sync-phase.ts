@@ -8,6 +8,7 @@
 
 import { Phase } from "#app/phase";
 import { globalScene } from "#app/global-scene";
+import { speciesDataRegistry } from "#app/global-species-data-registry";
 import { LanManager } from "./lan-manager";
 import { CoopManager } from "./coop-manager";
 
@@ -54,7 +55,7 @@ export class CoopPartySyncPhase extends Phase {
 
       // 添加 ghost 副本
       for (const pd of partyData) {
-        const species = globalScene.speciesDataRegistry.getSpecies(pd.speciesId);
+        const species = speciesDataRegistry.getSpecies(pd.speciesId);
         if (!species) {
           console.log("[PARTY_SYNC] 未知物种:", pd.speciesId);
           continue;
