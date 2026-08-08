@@ -1,57 +1,60 @@
 ## ADDED Requirements
 
-### Requirement: 合作模式开局
-系统 SHALL 在合作模式开始时同步双方的初始状态和 RNG 种子。
+### Requirement: 合作模式激活
+系统 SHALL 在 Host 点击开始后激活合作模式。CoopManager 为单例，状态在整个游戏流程中保持。
 
-#### Scenario: 同步初始状态
-- **WHEN** 双方就绪后 Host 点击「开始」
-- **THEN** Host 发送 GAME_START 消息（含 RNG 种子、初始队伍配置），双方各自初始化游戏世界
+#### Scenario: 合作模式激活
+- **WHEN** Host 发送 start 消息
+- **THEN** 双方 CoopManager.active = true，RNG 种子同步
 
-#### Scenario: 共享地图进度
-- **WHEN** 一方击败当前波次的所有敌人
-- **THEN** 双方同时进入下一波，但遭遇的敌人和道具有可能不同（各自独立探索）
+### Requirement: 队伍同步
+系统 SHALL 在双方完成初始宝可梦选择后交换队伍数据，使场上同时显示双方的宝可梦。
 
-### Requirement: 合作战斗 — 双人指令
-系统 SHALL 在合作战斗中等双方都提交指令后才开始执行回合。
+#### Scenario: 交换初始队伍
+- **WHEN** 双方进入第一个战斗前（TitlePhase.end 阶段）
+- **THEN** 系统推送 CoopPartySyncPhase：发送己方队伍数据，接收对方队伍数据，将对方宝可梦加入己方队伍列表
 
-#### Scenario: 双方提交指令
-- **WHEN** 双方在指令阶段各自为宝可梦选择了行动（技能/替换/道具）
-- **THEN** 各自的 TurnCommand 通过 WebSocket 发送给对方；双方都收到对方的指令后，回合开始执行
+#### Scenario: 同屏显示
+- **WHEN** 第一个战斗开始
+- **THEN** 双方场上各有一只宝可梦（共两只），玩家只能为自己的宝可梦选择指令
 
-#### Scenario: 一方未提交（超时）
+### Requirement: 回合同步
+系统 SHALL 在合作战斗中等双方都提交指令后才执行回合。
+
+#### Scenario: 发送本地指令
+- **WHEN** 玩家为自己的宝可梦选择技能
+- **THEN** CommandPhase 正常处理，turnCommands[己方位] 被设置
+
+#### Scenario: 交换指令
+- **WHEN** 双方 CommandPhase 全部完成
+- **THEN** CoopSyncPhase 发送本地指令给对方，接收对方指令填入 turnCommands[对方位]，双方指令到齐后 TurnStartPhase 执行回合
+
+#### Scenario: 超时处理
 - **WHEN** 一方在 60 秒内未提交指令
-- **THEN** 系统自动为该玩家的宝可梦选择「挣扎」（Struggle），继续回合执行
+- **THEN** 该玩家宝可梦自动使用「挣扎」（Struggle），回合继续
 
-#### Scenario: 双方可看到对方的宝可梦
-- **WHEN** 合作对战中
-- **THEN** 双方可以看到对方场上宝可梦的 HP、状态和当前信息，但不能替对方选择指令
+### Requirement: 昏厥处理与复活
+系统 SHALL 在全灭时不立即 GameOver，而是等待队友清完当前波次后复活。
 
-### Requirement: 合作奖励分配
-系统 SHALL 在击败敌人后公平分配奖励。
+#### Scenario: 一方全灭
+- **WHEN** 一方所有宝可梦昏厥
+- **THEN** FaintPhase 检测 CoopManager 激活 → 发送 faint 消息给队友 → 不触发 GameOver
+
+#### Scenario: 波次结束复活
+- **WHEN** 幸存方击败当前波次所有敌人
+- **THEN** CoopRevivalPhase 将全灭方所有宝可梦复活至 10% HP，清除异常状态
+
+#### Scenario: 双方全灭
+- **WHEN** 双方所有宝可梦都昏厥
+- **THEN** 触发 GameOver，游戏结束
+
+### Requirement: 经验与奖励分配
+系统 SHALL 在合作模式下公平分配战斗奖励。
 
 #### Scenario: 经验平分
 - **WHEN** 敌方宝可梦被击败
-- **THEN** 参与战斗的双方宝可梦各获得一半经验值
+- **THEN** 双方参战宝可梦各获得一半经验值
 
 #### Scenario: 道具轮流选择
-- **WHEN** 战斗结束后掉落了多个道具
-- **THEN** 按照 A→B→B→A 的顺序轮流选择（第一轮 A 先选，下一轮 B 先选）
-
-#### Scenario: 捕获宝可梦的归属
-- **WHEN** 一方使用精灵球成功捕获野生宝可梦
-- **THEN** 该宝可梦自动归捕获者所有，不可转让
-
-### Requirement: 合作模式队伍管理
-双方 SHALL 各自独立管理自己的队伍（宝可梦、道具、背包）。
-
-#### Scenario: 独立队伍操作
-- **WHEN** 在波次间隙
-- **THEN** 双方可各自使用背包道具、替换队伍成员、进化宝可梦，互不影响
-
-#### Scenario: 一方队伍全灭
-- **WHEN** 一方所有宝可梦昏厥
-- **THEN** 该玩家进入观战模式（只能看另一方继续战斗）；若另一方也全灭，则合作失败，游戏结束
-
-#### Scenario: 同伴救援
-- **WHEN** 一方队伍全灭但另一方还有存活宝可梦
-- **THEN** 存活的玩家可在下一波结束时选择"分享一只宝可梦"给队友（从自己的后备中赠送一只），队友用这只宝可梦继续游戏
+- **WHEN** 战斗结束后掉落多个道具
+- **THEN** 按 A→B→B→A 顺序轮流选择
