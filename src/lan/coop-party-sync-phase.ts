@@ -52,43 +52,42 @@ export class CoopPartySyncPhase extends Phase {
       const party = globalScene.getPlayerParty();
       const localRole = lm.getRole();
 
-      // 只添加对方首发 ghost。如果己方 party 已满（6只），skip——不污染背包。
+      // 添加对手全部精灵作为 ghost 池（支持换人）
       const ghostStartIdx = party.length;
-      if (party.length >= 6) {
-        console.log("[PARTY_SYNC] 己方队伍已满(6只), 跳过 ghost 添加");
-      } else {
-        const lead = partyData[0];
-        const species = speciesDataRegistry.getSpecies(lead.speciesId);
-        if (species) {
-          const ghost = globalScene.addPlayerPokemon(
-            species, lead.level, lead.abilityIndex ?? 0, lead.formIndex,
-            lead.gender, lead.shiny, 0, lead.ivs ?? [15,15,15,15,15,15],
-            lead.nature ?? 0,
-          );
-          ghost.hp = Math.min(lead.hp, lead.maxHp ?? lead.hp);
-          // 设置技能（精确副本—moveset 是 MoveId[]）
-          if (lead.moveset && lead.moveset.length > 0) {
-            ghost.tryPopulateMoveset(lead.moveset, true);
-          }
-          (ghost as any)._coopGhost = true;
-          party.push(ghost);
-          CoopManager.getInstance().setRemoteGhostIndex(party.length - 1);
-          console.log("[PARTY_SYNC] 添加 ghost:", lead.name, "moves:", lead.moveset);
-        }
+      let added = 0;
+      for (const pd of partyData) {
+        if (party.length >= 6) { console.log("[PARTY_SYNC] 队伍已满, 停止添加 ghost"); break; }
+        const species = speciesDataRegistry.getSpecies(pd.speciesId);
+        if (!species) continue;
+        const ghost = globalScene.addPlayerPokemon(
+          species, pd.level, pd.abilityIndex ?? 0, pd.formIndex,
+          pd.gender, pd.shiny, 0, pd.ivs ?? [15,15,15,15,15,15],
+          pd.nature ?? 0,
+        );
+        ghost.hp = Math.min(pd.hp, pd.maxHp ?? pd.hp);
+        if (pd.moveset?.length > 0) ghost.tryPopulateMoveset(pd.moveset, true);
+        (ghost as any)._coopGhost = true;
+        party.push(ghost);
+        added++;
       }
+      CoopManager.getInstance().setRemotePartyRange(ghostStartIdx, party.length - ghostStartIdx);
+      console.log("[PARTY_SYNC] 添加", added, "只 ghost, 起始位置:", ghostStartIdx);
 
       console.log("[PARTY_SYNC] 重排前:", party.map(p => p.getNameToRender()).join(", "), "ghostStart:", ghostStartIdx);
 
-      if (localRole === "host") {
-        // Host: [host_lead, host_2nd..., ghost] → [host_lead, ghost, host_2nd...]
-        const ghost = party.splice(ghostStartIdx, 1)[0];
-        party.splice(1, 0, ghost);
-      } else {
-        // Client: [client_lead, client_2nd..., ghost] → [ghost, client_lead, client_2nd...]
-        const ghost = party.splice(ghostStartIdx, 1)[0];
-        const myLead = party.shift()!;
-        party.splice(0, 0, ghost);
-        party.splice(1, 0, myLead);
+      // 重排：把对手首发 ghost 挪到 slot1(Host) 或 slot0(Client)
+      // 其余 ghost 留在 party 末尾作为后备池
+      const ghostCount = party.length - ghostStartIdx;
+      if (ghostCount > 0) {
+        if (localRole === "host") {
+          const leadGhost = party.splice(ghostStartIdx, 1)[0];
+          party.splice(1, 0, leadGhost);
+        } else {
+          const leadGhost = party.splice(ghostStartIdx, 1)[0];
+          const myLead = party.shift()!;
+          party.splice(0, 0, leadGhost);
+          party.splice(1, 0, myLead);
+        }
       }
 
       console.log("[PARTY_SYNC] 重排后:", party.map(p => p.getNameToRender()).join(", "));

@@ -32,6 +32,7 @@ export class CoopSyncPhase extends Phase {
           localCmds.push({
             index: i,
             command: battle.turnCommands[i].command,
+            cursor: battle.turnCommands[i].cursor,
             move: battle.turnCommands[i].move
               ? { move: battle.turnCommands[i].move!.move, targets: battle.turnCommands[i].move!.targets }
               : null,
@@ -52,11 +53,22 @@ export class CoopSyncPhase extends Phase {
     if (action) {
       const battle = globalScene.currentBattle;
       for (const cmd of action) {
+        // 对手换人：交换 ghost
+        if (cmd.command === 2 && cmd.cursor != null) { // Command.POKEMON
+          const swap = CoopManager.getInstance().getRemoteGhostSwap(cmd.index, cmd.cursor);
+          const party = globalScene.getPlayerParty();
+          const tmp = party[swap.activeSlot];
+          party[swap.activeSlot] = party[swap.fromPool];
+          party[swap.fromPool] = tmp;
+          console.log("[COOP_SYNC] 对手换人: slot", swap.activeSlot, "← pool", swap.fromPool);
+        }
+
         battle.turnCommands[cmd.index] = {
           command: cmd.command ?? Command.FIGHT,
           move: cmd.move
             ? { move: cmd.move.move ?? MoveId.STRUGGLE, targets: cmd.move.targets ?? [], useMode: MoveUseMode.NORMAL }
             : { move: MoveId.STRUGGLE, targets: [], useMode: MoveUseMode.NORMAL },
+          cursor: cmd.cursor,
           targets: cmd.move?.targets ?? [],
           skip: cmd.skip ?? false,
         };
