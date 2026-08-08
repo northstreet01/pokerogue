@@ -1,6 +1,8 @@
 /**
  * 合作模式启动 Phase
- * 复用现有 TitlePhase 的游戏初始化流程
+ * 同步种子 → 激活合作模式 → 推入后续阶段
+ *
+ * 替代单机 TitlePhase 的游戏启动流程，确保双方使用相同种子。
  */
 
 import { Phase } from "#app/phase";
@@ -25,7 +27,7 @@ export class CoopStartPhase extends Phase {
     // 用经典模式
     globalScene.gameMode = getGameMode(GameModes.CLASSIC);
 
-    // 设置 RNG 种子
+    // 同步 RNG 种子 — 双方必须相同
     globalScene.setSeed(this.seed);
     globalScene.resetSeed();
 
@@ -34,8 +36,13 @@ export class CoopStartPhase extends Phase {
 
     // 清 UI → 选初始宝可梦
     globalScene.ui.clearText();
-    globalScene.ui.setMode(0); // 清除当前 UI mode
+    globalScene.ui.setMode(0);
+
+    // 推 SelectStarterPhase → CoopPartySyncPhase → EncounterPhase
+    // (复刻 TitlePhase.end() 的合作模式流程)
     globalScene.phaseManager.pushNew("SelectStarterPhase");
+    globalScene.phaseManager.pushNew("CoopPartySyncPhase");
+    globalScene.phaseManager.pushNew("EncounterPhase", false);
 
     this.end();
   }
