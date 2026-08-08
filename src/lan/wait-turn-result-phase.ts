@@ -22,6 +22,10 @@ export class WaitTurnResultPhase extends Phase {
     const lm = LanManager.getInstance();
     if (!coop.isActive()) { this.end(); return; }
 
+    const timeout = setTimeout(() => {
+      if (!resolved) { console.log("[WAIT_RESULT] 30s超时"); lm.off("turn-result"); lm.off("wave-complete"); this.end(); }
+    }, 30000);
+
     let resolved = false;
 
     const goNextWave = (waveIndex: number) => {
@@ -35,17 +39,13 @@ export class WaitTurnResultPhase extends Phase {
       this.end();
     };
 
-    // 检查缓存的 wave-complete（可能在回合结束前就到了）
+    // 检查缓存的 wave-complete
     const pendingWave = lm.getPendingWaveComplete();
     if (pendingWave != null) { goNextWave(pendingWave); return; }
 
     lm.on("wave-complete", (wi: number) => {
       if (!resolved) goNextWave(wi);
     });
-
-    const timeout = setTimeout(() => {
-      if (!resolved) { console.log("[WAIT_RESULT] 30s超时"); lm.off("turn-result"); lm.off("wave-complete"); this.end(); }
-    }, 30000);
 
     const processResult = (data: any) => {
       if (resolved) return;
