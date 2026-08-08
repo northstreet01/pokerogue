@@ -65,7 +65,6 @@ export class LobbyUiHandler extends UiHandler {
       this.hintText?.setText("对方已准备");
     });
     lm.on("game-start", (seed: string) => {
-      globalScene.ui.setMode(UiMode.MESSAGE);
       globalScene.phaseManager.pushNew("CoopStartPhase", seed);
     });
 
