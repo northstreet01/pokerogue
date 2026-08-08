@@ -14,6 +14,7 @@ export class LanManager {
   private listeners: Record<string, EventHandler[]> = {};
   private _pendingAction: any[] | null = null;
   private _pendingTurnResult: any = null;
+  private _pendingPartySync: { party: any[]; sender: string } | null = null;
 
   private constructor() {
     window.lanApi?.onConnected(() => {
@@ -41,6 +42,8 @@ export class LanManager {
       } else if (msg.type === "faint") {
         this.emit("faint", msg.allFainted);
       } else if (msg.type === "party-sync") {
+        // 缓存（防竞态：消息到达时 CoopPartySyncPhase 可能还没启动）
+        this._pendingPartySync = { party: msg.party, sender: msg.sender };
         this.emit("party-sync", msg.party, msg.sender);
       } else if (msg.type === "enemy-hp-sync") {
         this.emit("enemy-hp-sync", msg);
@@ -95,6 +98,11 @@ export class LanManager {
 
   /** 获取缓存的回合结果（消费后清除，防竞态） */
   getPendingTurnResult(): any { const r = this._pendingTurnResult; this._pendingTurnResult = null; return r; }
+
+  /** 获取缓存的队伍同步数据（消费后清除） */
+  getPendingPartySync(): { party: any[]; sender: string } | null {
+    const p = this._pendingPartySync; this._pendingPartySync = null; return p;
+  }
 
   // ===== 状态 =====
 
