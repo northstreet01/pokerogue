@@ -58,7 +58,7 @@ export class LanJoinUiHandler extends UiHandler {
     this.statusText = addTextObject(cw / 2, winY + 170, "", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
     this.container.add(this.statusText);
 
-    const hints = addTextObject(cw / 2, winY + 240, "键盘输入 IP  TAB 切换位置  Z 连接  X 返回  BACKSPACE 删除", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
+    const hints = addTextObject(cw / 2, winY + 240, "Ctrl+V 粘贴  TAB 切换  Z 连接  X 返回", TextStyle.STATS_LABEL).setOrigin(0.5, 0);
     this.container.add(hints);
 
     this.getUi().add(this.container);
@@ -72,8 +72,9 @@ export class LanJoinUiHandler extends UiHandler {
     this.connecting = false;
     this.refreshDisplay();
     this.container?.setVisible(true);
-    // 监听键盘输入
+    // 监听键盘输入 + 粘贴
     globalScene.input.keyboard?.on("keydown", this.onKeyDown, this);
+    document.addEventListener("paste", this.onPaste);
     return true;
   }
 
@@ -83,6 +84,7 @@ export class LanJoinUiHandler extends UiHandler {
       case Button.SUBMIT: this.doConnect(); return true;
       case Button.CANCEL:
         globalScene.input.keyboard?.off("keydown", this.onKeyDown, this);
+        document.removeEventListener("paste", this.onPaste);
         globalScene.ui.setMode(UiMode.LAN_MENU);
         return true;
       default: return false;
@@ -92,6 +94,7 @@ export class LanJoinUiHandler extends UiHandler {
   override clear(): void {
     super.clear();
     globalScene.input.keyboard?.off("keydown", this.onKeyDown, this);
+    document.removeEventListener("paste", this.onPaste);
     this.container?.setVisible(false);
   }
 
@@ -143,6 +146,25 @@ export class LanJoinUiHandler extends UiHandler {
     const cursor = this.editPort ? "     ◀" : "◀     ";
     return `${padIp}  ${cursor}  :${this.port}`;
   }
+
+  private onPaste = async (event: ClipboardEvent): Promise<void> => {
+    if (!this.active || this.connecting) { return; }
+    event.preventDefault();
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      // 过滤非 IP 字符
+      const cleaned = text.replace(/[^0-9.]/g, "");
+      if (cleaned) {
+        if (this.editPort) {
+          const port = parseInt(cleaned);
+          if (port >= 1 && port <= 65535) { this.port = port; }
+        } else {
+          this.ip = cleaned.slice(0, 21);
+        }
+        this.refreshDisplay();
+      }
+    } catch { /* clipboard access denied */ }
+  };
 
   private refreshDisplay(): void {
     this.ipText?.setText(this.formatDisplay());
