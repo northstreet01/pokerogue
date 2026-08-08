@@ -22,34 +22,41 @@ export class WaitTurnResultPhase extends Phase {
     const lm = LanManager.getInstance();
     if (!coop.isActive()) { this.end(); return; }
 
-    const timeout = setTimeout(() => {
-      if (!resolved) { console.log("[WAIT_RESULT] 30s超时"); cleanup(); this.end(); }
-    }, 30000);
+    let resolved = false;
 
-    const cleanup = () => { clearTimeout(timeout); lm.off("turn-result"); lm.off("wave-complete"); };
-
-    // 波次结束：Host 通知 Client 进入下一波
-    lm.on("wave-complete", (waveIndex: number) => {
-      console.log("[WAIT_RESULT] 波次完成, 下一波:", waveIndex);
-      cleanup();
-      // 结束当前战斗，进入下一波 EncounterPhase
+    const goNextWave = (waveIndex: number) => {
+      console.log("[WAIT_RESULT] 进入下一波:", waveIndex);
+      resolved = true;
+      clearTimeout(timeout);
+      lm.off("turn-result");
+      lm.off("wave-complete");
       globalScene.phaseManager.clearPhaseQueue();
       globalScene.phaseManager.pushNew("EncounterPhase", false);
       this.end();
+    };
+
+    // 检查缓存的 wave-complete（可能在回合结束前就到了）
+    const pendingWave = lm.getPendingWaveComplete();
+    if (pendingWave != null) { goNextWave(pendingWave); return; }
+
+    lm.on("wave-complete", (wi: number) => {
+      if (!resolved) goNextWave(wi);
     });
 
-    let resolved = false;
-    const handler = (data: any) => {
+    const timeout = setTimeout(() => {
+      if (!resolved) { console.log("[WAIT_RESULT] 30s超时"); lm.off("turn-result"); lm.off("wave-complete"); this.end(); }
+    }, 30000);
+
+    const processResult = (data: any) => {
       if (resolved) return;
       const result: TurnResult = data.result || data;
       if (!result?.finalState) return;
-      resolved = true;
 
       console.log("[WAIT_RESULT] turn:", result.turn, "hp:", result.finalState.map(s => `${s.index}=${s.hp}`).join(","));
 
       const field = globalScene.getField();
 
-      // 1. 显示战斗消息
+      // 显示技能使用消息
       for (const evt of result.events) {
         if (evt.type === "MOVE") {
           const user = field[evt.user];
@@ -62,61 +69,51 @@ export class WaitTurnResultPhase extends Phase {
         }
       }
 
-      // 2. 应用最终状态
+      // 应用最终状态 + 移除昏厥精灵
+      let anyFainted = false;
       for (const ps of result.finalState) {
         const pokemon = field[ps.index];
         if (!pokemon) continue;
 
         pokemon.hp = Math.max(0, ps.hp);
 
-        // 状态同步
-        if (ps.status && !pokemon.status) {
+        if (ps.status) {
           const effect = StatusEffect[ps.status as keyof typeof StatusEffect];
           if (effect != null) pokemon.status = new Status(effect);
         } else if (!ps.status && pokemon.status) {
           pokemon.status = null;
         }
 
-        // 昏厥：移除精灵
-        if (ps.fainted && pokemon.isActive()) {
+        if (ps.fainted && !pokemon.isFainted()) {
+          anyFainted = true;
           globalScene.phaseManager.queueMessage(
             i18next.t("battle:fainted", { pokemonNameWithAffix: getPokemonNameWithAffix(pokemon) }),
             null, true,
           );
-          pokemon.leaveField(false);
+          // 强制隐藏 + 标记离场
+          pokemon.setVisible(false);
+          pokemon.hp = 0;
         }
 
         pokemon.updateInfo();
       }
 
-      // 3. 检查是否所有敌人都昏厥了
-      const allEnemiesFainted = field.slice(BattlerIndex.ENEMY).every(
-        p => !p || p.isFainted() || !p.isActive()
-      );
-      const anyEnemyAlive = field.slice(BattlerIndex.ENEMY).some(
-        p => p && p.isActive() && !p.isFainted()
-      );
-
-      if (!anyEnemyAlive && allEnemiesFainted) {
+      // 检查是否所有敌人都死了
+      const enemiesAlive = field.slice(BattlerIndex.ENEMY).filter(p => p && p.isActive() && !p.isFainted());
+      if (enemiesAlive.length === 0) {
         console.log("[WAIT_RESULT] 所有敌人昏厥, 等待 wave-complete");
-        cleanup();
-        // 不 end() —— 等 wave-complete 消息来推进
-        lm.on("wave-complete", (wi: number) => {
-          console.log("[WAIT_RESULT] 波次完成, 下一波:", wi);
-          lm.off("wave-complete");
-          globalScene.phaseManager.clearPhaseQueue();
-          globalScene.phaseManager.pushNew("EncounterPhase", false);
-          this.end();
-        });
+        // 不清理 wave-complete 监听器，等 Host 发 wave-complete
+        lm.off("turn-result");
+        // wave-complete 监听器已经在 start 中注册，或从缓存获取
         return;
       }
 
-      cleanup();
+      lm.off("turn-result");
       this.end();
     };
 
-    lm.on("turn-result", handler);
+    lm.on("turn-result", processResult);
     const pending = lm.getPendingTurnResult?.();
-    if (pending) { handler(pending); }
+    if (pending) processResult(pending);
   }
 }

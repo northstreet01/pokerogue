@@ -15,6 +15,7 @@ export class LanManager {
   private _pendingAction: any[] | null = null;
   private _pendingTurnResult: any = null;
   private _pendingPartySync: { party: any[]; sender: string } | null = null;
+  private _pendingWaveComplete: number | null = null;
 
   private constructor() {
     window.lanApi?.onConnected(() => {
@@ -51,6 +52,7 @@ export class LanManager {
         this._pendingTurnResult = msg.result;
         this.emit("turn-result", msg);
       } else if (msg.type === "wave-complete") {
+        this._pendingWaveComplete = msg.waveIndex;
         this.emit("wave-complete", msg.waveIndex);
       }
     });
@@ -102,6 +104,10 @@ export class LanManager {
   /** 获取缓存的队伍同步数据（消费后清除） */
   getPendingPartySync(): { party: any[]; sender: string } | null {
     const p = this._pendingPartySync; this._pendingPartySync = null; return p;
+  }
+
+  getPendingWaveComplete(): number | null {
+    const w = this._pendingWaveComplete; this._pendingWaveComplete = null; return w;
   }
 
   // ===== 状态 =====
