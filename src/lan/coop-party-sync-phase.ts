@@ -75,20 +75,8 @@ export class CoopPartySyncPhase extends Phase {
 
       console.log("[PARTY_SYNC] 重排前:", party.map(p => p.getNameToRender()).join(", "), "ghostStart:", ghostStartIdx);
 
-      // 重排：把对手首发 ghost 挪到 slot1(Host) 或 slot0(Client)
-      // 其余 ghost 留在 party 末尾作为后备池
-      const ghostCount = party.length - ghostStartIdx;
-      if (ghostCount > 0) {
-        if (localRole === "host") {
-          const leadGhost = party.splice(ghostStartIdx, 1)[0];
-          party.splice(1, 0, leadGhost);
-        } else {
-          const leadGhost = party.splice(ghostStartIdx, 1)[0];
-          const myLead = party.shift()!;
-          party.splice(0, 0, leadGhost);
-          party.splice(1, 0, myLead);
-        }
-      }
+      // ghost 全部留在 party 末尾，不混入本地精灵
+      // getPlayerField() 负责把正确的 ghost 映射到 field slot
 
       console.log("[PARTY_SYNC] 重排后:", party.map(p => p.getNameToRender()).join(", "));
       console.log("[PARTY_SYNC] slot0:", party[0]?.getNameToRender(), "slot1:", party[1]?.getNameToRender());

@@ -1136,6 +1136,7 @@ export class PartyUiHandler extends MessageUiHandler {
     }
 
     for (const p in party) {
+      if ((party[p] as any)._coopGhost) continue; // 合作模式：不显示对手 ghost
       const slotIndex = Number.parseInt(p);
       const partySlot = new PartySlot(slotIndex, party[p], this.iconAnimHandler, this.partyUiMode, this.tmMoveId);
       globalScene.add.existing(partySlot);
