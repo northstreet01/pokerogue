@@ -24,6 +24,7 @@ export class LobbyUiHandler extends UiHandler {
   private players: PlayerInfo[] = [];
   private opponentConnected = false;
   private coordinator: LobbyCoordinator = new LobbyCoordinator();
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super(UiMode.LOBBY);
@@ -98,18 +99,22 @@ export class LobbyUiHandler extends UiHandler {
       ready: false,
     }];
 
-    // 检查对方是否已经连接（可能事件在 show 之前就到了）
-    if (lanManager.isOpponentConnected()) {
-      this.opponentConnected = true;
-      this.players.push({
-        playerId: "opponent",
-        playerName: lanManager.getOpponentName() || "对手",
-        role: lanManager.isHost() ? "client" : "host",
-        ready: false,
-      });
-    }
-
     this.refreshDisplay();
+
+    // 启动轮询：每 1 秒主动检查对手连接状态
+    this.pollTimer = setInterval(() => {
+      const lm = LanManager.getInstance();
+      if (lm.isOpponentConnected() && !this.opponentConnected) {
+        this.opponentConnected = true;
+        this.players.push({
+          playerId: "opponent",
+          playerName: lm.getOpponentName() || "对手",
+          role: lm.isHost() ? "client" : "host",
+          ready: false,
+        });
+        this.refreshDisplay();
+      }
+    }, 1000);
 
     return true;
   }
@@ -130,6 +135,7 @@ export class LobbyUiHandler extends UiHandler {
 
   override clear(): void {
     super.clear();
+    if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
     this.container?.setVisible(false);
     this.players = [];
   }
