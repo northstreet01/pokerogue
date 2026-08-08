@@ -19,6 +19,7 @@ console.log(`[LAN Server] 最大玩家数: ${MAX_PLAYERS}`);
 /** 客户端映射: ws → client data */
 const clients = new Map();
 let nextClientId = 1;
+let serverSeq = 1;
 
 wss.on("connection", (ws) => {
   // 检查人数
@@ -27,7 +28,7 @@ wss.on("connection", (ws) => {
       JSON.stringify({
         type: "ERROR",
         payload: { code: "ROOM_FULL", message: "房间已满" },
-        seq: 0,
+        seq: serverSeq++,
         timestamp: Date.now(),
       }),
     );
@@ -67,7 +68,7 @@ wss.on("connection", (ws) => {
               hostName: getHostName(),
               gameVersion: msg.payload.gameVersion,
             },
-            seq: 0,
+            seq: serverSeq++,
             timestamp: Date.now(),
           }),
         );
@@ -79,7 +80,7 @@ wss.on("connection", (ws) => {
               JSON.stringify({
                 type: "PLAYER_JOINED",
                 payload: { playerId: c.id, playerName: c.name, ready: c.ready },
-                seq: 0,
+                seq: serverSeq++,
                 timestamp: Date.now(),
               }),
             );
@@ -90,7 +91,7 @@ wss.on("connection", (ws) => {
         broadcast(ws, {
           type: "PLAYER_JOINED",
           payload: { playerId: client.id, playerName: client.name, ready: false },
-          seq: 0,
+          seq: serverSeq++,
           timestamp: Date.now(),
         });
 
@@ -131,7 +132,7 @@ wss.on("connection", (ws) => {
     broadcast(null, {
       type: "PLAYER_LEFT",
       payload: { playerId: client.id },
-      seq: 0,
+      seq: serverSeq++,
       timestamp: Date.now(),
     });
 

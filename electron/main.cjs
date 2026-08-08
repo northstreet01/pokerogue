@@ -19,6 +19,7 @@ function startWSServer() {
   const wss = new WebSocketServer({ port: WS_PORT });
   const clients = new Map();
   let nextId = 1;
+  let serverSeq = 1;  // 服务器消息序号，防止客户端防重丢弃
 
   console.log(`[LAN] WebSocket 服务已启动，端口 ${WS_PORT}`);
 
@@ -27,7 +28,7 @@ function startWSServer() {
       ws.send(JSON.stringify({
         type: "ERROR",
         payload: { code: "ROOM_FULL", message: "房间已满" },
-        seq: 0, timestamp: Date.now(),
+        seq: serverSeq++, timestamp: Date.now(),
       }));
       ws.close();
       return;
@@ -47,7 +48,7 @@ function startWSServer() {
           ws.send(JSON.stringify({
             type: "HELLO_ACK",
             payload: { assignedId: client.id, hostName: getHostName(), gameVersion: msg.payload.gameVersion },
-            seq: 0, timestamp: Date.now(),
+            seq: serverSeq++, timestamp: Date.now(),
           }));
           // 告诉新玩家：当前在线的人有哪些
           for (const [, c] of clients) {
@@ -55,12 +56,12 @@ function startWSServer() {
               ws.send(JSON.stringify({
                 type: "PLAYER_JOINED",
                 payload: { playerId: c.id, playerName: c.name, ready: c.ready },
-                seq: 0, timestamp: Date.now(),
+                seq: serverSeq++, timestamp: Date.now(),
               }));
             }
           }
           // 告诉老玩家：有新人来了
-          broadcast(ws, { type: "PLAYER_JOINED", payload: { playerId: client.id, playerName: client.name, ready: false }, seq: 0, timestamp: Date.now() });
+          broadcast(ws, { type: "PLAYER_JOINED", payload: { playerId: client.id, playerName: client.name, ready: false }, seq: serverSeq++, timestamp: Date.now() });
           return;
         }
 
@@ -79,7 +80,7 @@ function startWSServer() {
 
     ws.on("close", () => {
       clients.delete(ws);
-      broadcast(null, { type: "PLAYER_LEFT", payload: { playerId: client.id }, seq: 0, timestamp: Date.now() });
+      broadcast(null, { type: "PLAYER_LEFT", payload: { playerId: client.id }, seq: serverSeq++, timestamp: Date.now() });
     });
 
     ws.on("error", () => {});
