@@ -105,6 +105,21 @@ interface TurnSnapshot {
 - **WHEN** 双方所有宝可梦都昏厥
 - **THEN** 触发 GameOver
 
+### Requirement: 存档与进度保持
+系统 SHALL 在合作模式下保持玩家的单机存档进度。初始宝可梦解锁、道具、成就等与单机模式共享同一存档数据。合作模式不覆盖或隔离单机存档。
+
+#### Scenario: 合作模式使用已有存档
+- **WHEN** 玩家通过合作模式开始新游戏
+- **THEN** 起始宝可梦选择界面显示该玩家已解锁的所有宝可梦（与单机模式一致）
+
+#### Scenario: 合作模式进度写入存档
+- **WHEN** 合作模式中击败敌人、获得道具、解锁成就
+- **THEN** Host 端存档正常更新（Host 运行完整游戏引擎），Client 端不写入存档
+
+#### Scenario: Client 解锁保留
+- **WHEN** Client 在合作模式中使用新宝可梦
+- **THEN** Client 的宝可梦图鉴等数据在本次会话中更新（Client 端有本地 party 副本），但存档以 Host 为准
+
 ### Requirement: 断线与代管（UNO `botTurn` 模式）
 系统 SHALL 在 Client 断线时由 Host 自动代管。
 
