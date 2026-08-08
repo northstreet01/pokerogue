@@ -87,7 +87,16 @@ export class CoopPartySyncPhase extends Phase {
       this.end();
     };
 
-    // 1. 检查缓存（防竞态：对方消息在 Phase 启动前就到了）
+    // 1. 先发送我方队伍（必须在缓存检查之前！确保对方能收到）
+    lm.send({ type: "party-sync", party: myParty, sender: lm.getRole() });
+    console.log("[PARTY_SYNC] 已发送我方队伍");
+
+    // 2. 超时（在缓存检查前声明，processPartySync 会 clearTimeout）
+    const timeout = setTimeout(() => {
+      if (!resolved) { console.log("[PARTY_SYNC] 30s超时!"); this.end(); }
+    }, 30000);
+
+    // 3. 检查缓存（防竞态：对方消息在 Phase 启动前就到了）
     const cached = lm.getPendingPartySync();
     if (cached && cached.sender !== lm.getRole()) {
       console.log("[PARTY_SYNC] 使用缓存的对手队伍（Phase启动前到达）");
@@ -95,18 +104,9 @@ export class CoopPartySyncPhase extends Phase {
       return;
     }
 
-    // 2. 注册监听（必须在 send 之前）
+    // 4. 注册监听（缓存未命中时走网络等待）
     lm.on("party-sync", (partyData: any[], sender?: string) => {
       processPartySync(partyData, sender!);
     });
-
-    // 3. 发送我方队伍
-    lm.send({ type: "party-sync", party: myParty, sender: lm.getRole() });
-    console.log("[PARTY_SYNC] 已发送我方队伍");
-
-    // 4. 超时
-    const timeout = setTimeout(() => {
-      if (!resolved) { console.log("[PARTY_SYNC] 30s超时!"); this.end(); }
-    }, 30000);
   }
 }
