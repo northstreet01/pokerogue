@@ -13,6 +13,7 @@ export class LanManager {
   private _opponentConnected = false;
   private listeners: Record<string, EventHandler[]> = {};
   private _pendingAction: any[] | null = null;
+  private _pendingTurnResult: any = null;
 
   private constructor() {
     window.lanApi?.onConnected(() => {
@@ -43,6 +44,9 @@ export class LanManager {
         this.emit("party-sync", msg.party, msg.sender);
       } else if (msg.type === "enemy-hp-sync") {
         this.emit("enemy-hp-sync", msg);
+      } else if (msg.type === "turn-result") {
+        this._pendingTurnResult = msg.result;
+        this.emit("turn-result", msg);
       } else if (msg.type === "wave-complete") {
         this.emit("wave-complete", msg.waveIndex);
       }
@@ -88,6 +92,9 @@ export class LanManager {
 
   /** 获取缓存的对战指令（消费后清除，防竞态） */
   getPendingAction(): any[] | null { const a = this._pendingAction; this._pendingAction = null; return a; }
+
+  /** 获取缓存的回合结果（消费后清除，防竞态） */
+  getPendingTurnResult(): any { const r = this._pendingTurnResult; this._pendingTurnResult = null; return r; }
 
   // ===== 状态 =====
 
