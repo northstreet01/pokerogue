@@ -1,7 +1,5 @@
 import { globalScene } from "#app/global-scene";
 import { settings } from "#app/global-settings-manager";
-import { CoopManager } from "#app/lan/coop-manager";
-import { LanManager } from "#app/lan/lan-manager";
 import { Phase } from "#app/phase";
 
 export class MessagePhase extends Phase {
@@ -88,9 +86,9 @@ export class MessagePhase extends Phase {
       );
     }
 
-    // 合作模式 Host：记录战斗消息事件（供 Client 重放）
-    if (CoopManager.getInstance().isActive() && LanManager.getInstance().isHost()) {
-      LanManager.getInstance().logBattleEvent({ type: "MESSAGE", text: this.text });
-    }
+    // 注意：不在 MessagePhase 收集 MESSAGE 事件
+    // 如果每回合 30+ 消息都发给 Client，Client 的 ReplayMessagePhase
+    // 每条默认 1500ms 延迟，回放会需要 45 秒 → 造成严重卡顿
+    // 改为只在关键 Phase (MovePhase/FaintPhase) 精确收集事件
   }
 }
