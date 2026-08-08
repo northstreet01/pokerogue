@@ -38,23 +38,36 @@ function startHTTP() {
   }).listen(HTTP_PORT, () => console.log(`[HTTP] http://localhost:${HTTP_PORT}`));
 }
 
+// ========== 安全 IPC 发送 (防止窗口已销毁) ==========
+function safeSend(channel, ...args) {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, ...args);
+    }
+  } catch (_) {
+    // 窗口已销毁，忽略
+  }
+}
+
 // ========== 清理函数 ==========
 function cleanupLan() {
   console.log("[LAN] 清理连接...");
-  if (socket) {
-    console.log("[LAN] 断开 socket 客户端");
-    socket.removeAllListeners();
-    socket.disconnect();
-    socket = null;
-  }
+  // 1. 先关 Socket.io 服务端（防止 disconnect 事件传播）
   if (io) {
     console.log("[LAN] 关闭 Socket.io 服务端");
-    io.close();
+    try { io.close(); } catch (e) { console.log("[LAN] io.close error:", e.message); }
     io = null;
   }
+  // 2. 再断客户端 socket
+  if (socket) {
+    console.log("[LAN] 断开 socket 客户端");
+    try { socket.removeAllListeners(); socket.disconnect(); } catch (e) { console.log("[LAN] socket disconnect error:", e.message); }
+    socket = null;
+  }
+  // 3. 最后关 HTTP 服务端
   if (gameServer) {
     console.log("[LAN] 关闭 TCP 服务端 (端口 9090)");
-    gameServer.close();
+    try { gameServer.close(); } catch (e) { console.log("[LAN] gameServer close error:", e.message); }
     gameServer = null;
   }
 }
@@ -72,16 +85,14 @@ ipcMain.handle("lan:host", async () => {
     io.on("connection", (sock) => {
       console.log("[Socket.io] 客户端已连接:", sock.id);
 
-      // 转发消息：广播给其他人（除了发送者）
       sock.on("lan-message", (msg) => {
         console.log("[Socket.io] 收到消息:", msg.type, "from:", msg.from);
-        // 广播给除发送者外的所有客户端（Host 自己通过本地 socket 也能收到）
         sock.broadcast.emit("lan-message", msg);
       });
 
       sock.on("disconnect", () => {
         console.log("[Socket.io] 客户端断开:", sock.id);
-        mainWindow?.webContents.send("lan:disconnected");
+        safeSend("lan:disconnected");
       });
     });
 
@@ -97,11 +108,11 @@ ipcMain.handle("lan:host", async () => {
       socket = ClientIO(`http://localhost:${GAME_PORT}`);
       socket.on("connect", () => {
         console.log("[Socket.io] Host 已自连");
-        mainWindow?.webContents.send("lan:connected");
+        safeSend("lan:connected");
         resolve({ port: GAME_PORT });
       });
       socket.on("lan-message", (msg) => {
-        mainWindow?.webContents.send("lan:message", msg);
+        safeSend("lan:message", msg);
       });
       socket.on("connect_error", (err) => {
         console.error("[Socket.io] Host 自连失败:", err.message);
@@ -115,7 +126,10 @@ ipcMain.handle("lan:host", async () => {
 ipcMain.handle("lan:join", async (_event, host, port) => {
   console.log(`[LAN] 加入房间: ${host}:${port || GAME_PORT}`);
   // 先清理旧的
-  if (socket) { socket.removeAllListeners(); socket.disconnect(); socket = null; }
+  if (socket) {
+    try { socket.removeAllListeners(); socket.disconnect(); } catch (_) {}
+    socket = null;
+  }
 
   return new Promise((resolve, reject) => {
     socket = ClientIO(`http://${host}:${port || GAME_PORT}`, {
@@ -126,18 +140,18 @@ ipcMain.handle("lan:join", async (_event, host, port) => {
 
     socket.on("connect", () => {
       console.log("[Socket.io] 已连接到 Host");
-      mainWindow?.webContents.send("lan:connected");
+      safeSend("lan:connected");
       resolve({ success: true });
     });
 
     socket.on("lan-message", (msg) => {
       console.log("[Socket.io] 收到消息:", msg.type, "from:", msg.from);
-      mainWindow?.webContents.send("lan:message", msg);
+      safeSend("lan:message", msg);
     });
 
     socket.on("disconnect", () => {
       console.log("[Socket.io] 断开连接");
-      mainWindow?.webContents.send("lan:disconnected");
+      safeSend("lan:disconnected");
     });
 
     socket.on("connect_error", (err) => {
@@ -151,10 +165,8 @@ ipcMain.handle("lan:join", async (_event, host, port) => {
 ipcMain.on("lan:send", (_event, msg) => {
   console.log("[IPC] 发送消息:", msg.type, "from:", msg.from);
   if (io) {
-    // Host: 广播给所有客户端（除 Host 自己）
     io.emit("lan-message", msg);
   } else if (socket) {
-    // Client: 发给 Host 的服务器
     socket.emit("lan-message", msg);
   }
 });
@@ -176,6 +188,7 @@ function createWindow() {
     autoHideMenuBar: true,
   });
   mainWindow.setMenuBarVisibility(false);
+  mainWindow.on("closed", () => { mainWindow = null; });
   mainWindow.loadURL(`http://localhost:${HTTP_PORT}`);
 }
 
