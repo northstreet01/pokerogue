@@ -16,7 +16,9 @@ export class RemoteWaitPhase extends Phase {
   public readonly phaseName = "RemoteWaitPhase";
 
   override start(): void {
+    console.log("[RW] start, coop:", CoopManager.getInstance().isActive(), "host:", LanManager.getInstance().isHost());
     if (!CoopManager.getInstance().isActive() || !LanManager.getInstance().isHost()) {
+      console.log("[RW] 提前退出");
       this.end(); return;
     }
 

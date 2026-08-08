@@ -20,13 +20,15 @@ export class SendActionPhase extends Phase {
     const cmd = battle.turnCommands[myIdx];
 
     if (cmd) {
+      // SelectTargetPhase 写入顶层 cmd.targets，不是 cmd.move.targets
+      const targets = cmd.targets ?? cmd.move?.targets ?? [];
       lm.sendAction([{
         index: myIdx,
         command: cmd.command,
-        move: cmd.move ? { move: cmd.move.move, targets: cmd.move.targets } : null,
+        move: { move: cmd.move?.move ?? 0, targets },
         skip: cmd.skip,
       }]);
-      console.log("[SEND_ACTION] 发送指令:", cmd.command);
+      console.log("[SEND_ACTION] cmd:", cmd.command, "move:", cmd.move?.move, "targets:", targets);
     }
 
     this.end();
