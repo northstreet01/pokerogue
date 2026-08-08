@@ -1,5 +1,6 @@
 /**
- * 大厅 UI - 连接 → 开始合作闯关
+ * 大厅 UI - 连接 → 开始合作
+ * 关闭大厅后回到标题，玩家手动点「新游戏」→ 合作模式自动生效
  */
 
 import { globalScene } from "#app/global-scene";
@@ -17,7 +18,6 @@ export class LobbyUiHandler extends UiHandler {
   private infoText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private opponentHere = false;
-  private gameStarting = false;
 
   constructor() { super(UiMode.LOBBY); }
 
@@ -26,7 +26,7 @@ export class LobbyUiHandler extends UiHandler {
     this.container.setVisible(false);
     const cw = globalScene.scaledCanvas.width;
     const ch = globalScene.scaledCanvas.height;
-    const winW = 360; const winH = 220;
+    const winW = 380; const winH = 240;
     const offY = -ch;
     const winX = (cw - winW) / 2;
     const winY = offY + (ch - winH) / 2;
@@ -35,7 +35,7 @@ export class LobbyUiHandler extends UiHandler {
     this.container.add(addTextObject(cw / 2, winY + 20, "房间大厅", TextStyle.SUMMARY_HEADER).setOrigin(0.5, 0));
     this.infoText = addTextObject(cw / 2, winY + 65, "", TextStyle.STATS_VALUE).setOrigin(0.5, 0);
     this.container.add(this.infoText);
-    this.hintText = addTextObject(cw / 2, winY + 140, "", TextStyle.WINDOW).setOrigin(0.5, 0);
+    this.hintText = addTextObject(cw / 2, winY + 150, "", TextStyle.WINDOW).setOrigin(0.5, 0);
     this.container.add(this.hintText);
     this.container.add(addTextObject(cw / 2, winY + winH - 20, "Enter 确认  X 返回", TextStyle.STATS_LABEL).setOrigin(0.5, 0));
     this.getUi().add(this.container);
@@ -45,17 +45,14 @@ export class LobbyUiHandler extends UiHandler {
     super.show(_args);
     this.container?.setVisible(true);
     this.opponentHere = false;
-    this.gameStarting = false;
     const lm = LanManager.getInstance();
 
     lm.on("opponent-joined", () => { this.opponentHere = true; this.refresh(); });
     lm.on("disconnected", () => { this.opponentHere = false; this.refresh(); });
-    lm.on("game-start", (seed: string) => {
-      if (this.gameStarting) return;
-      this.gameStarting = true;
+    lm.on("game-start", (_seed: string) => {
       CoopManager.getInstance().start();
-      // Client：收到 Host 信号 → 启动合作游戏
-      globalScene.phaseManager.pushNew("CoopStartPhase", seed);
+      this.closeLobby();
+      globalScene.ui.showText("合作模式已激活！请选择 [新游戏] 开始", null, 0, 5);
     });
 
     if (lm.isOpponentConnected()) this.opponentHere = true;
@@ -69,10 +66,13 @@ export class LobbyUiHandler extends UiHandler {
       lm.isHost() ? "· Host (你)" : "· Client (你)",
       this.opponentHere ? "· 对手已连接 ✓" : "· 等待对手...",
     ].join("\n"));
-    this.hintText?.setText(
-      lm.isHost() && this.opponentHere ? "按 Enter 开始合作闯关" :
-      !lm.isHost() ? "等待 Host 启动..." : ""
-    );
+    if (lm.isHost() && this.opponentHere) {
+      this.hintText?.setText("按 Enter → 回到标题\n双方各自选择 [新游戏] 开始");
+    } else if (!lm.isHost()) {
+      this.hintText?.setText("等待 Host 启动...");
+    } else {
+      this.hintText?.setText("");
+    }
   }
 
   override processInput(button: Button): boolean {
@@ -80,22 +80,25 @@ export class LobbyUiHandler extends UiHandler {
     switch (button) {
       case Button.SUBMIT: {
         const lm = LanManager.getInstance();
-        if (lm.isHost() && this.opponentHere && !this.gameStarting) {
-          this.gameStarting = true;
+        if (lm.isHost() && this.opponentHere) {
           const seed = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
           lm.sendStart(seed);
           CoopManager.getInstance().start();
-          // Host：启动合作游戏
-          globalScene.phaseManager.pushNew("CoopStartPhase", seed);
+          this.closeLobby();
+          globalScene.ui.showText("合作模式已激活！请选择 [新游戏] 开始", null, 0, 5);
         }
         return true;
       }
       case Button.CANCEL:
         LanManager.getInstance().leaveRoom();
-        globalScene.phaseManager.pushNew("TitlePhase");
+        this.closeLobby();
         return true;
       default: return false;
     }
+  }
+
+  private closeLobby(): void {
+    globalScene.ui.setMode(UiMode.TITLE);
   }
 
   override clear(): void { super.clear(); this.container?.setVisible(false); }
