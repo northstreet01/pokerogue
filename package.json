@@ -6,6 +6,9 @@
   "main": "electron/main.cjs",
   "scripts": {
     "electron:dev": "vite build --mode development && electron .",
+    "lan": "vite build --mode development && start \"Host-8000\" cmd /c \"npx electron .\" && start \"Client-8001\" cmd /c \"npx electron . 8001\"",
+    "lan:host": "vite build --mode development && electron .",
+    "lan:client": "vite build --mode development && electron . 8001",
     "electron:build": "vite build --mode development && electron-builder --win portable",
     "start:prod": "vite --mode production",
     "start:beta": "vite --mode beta",
