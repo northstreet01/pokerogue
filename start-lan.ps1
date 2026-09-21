@@ -1,12 +1,13 @@
 # PokéRogue 局域网联机启动脚本
 # 同时启动 LAN 服务器 + 游戏
+Set-Location -LiteralPath $PSScriptRoot
 
 Write-Host "=== PokéRogue 局域网联机 ===" -ForegroundColor Green
 
 # 1. 启动 LAN 服务器（后台）
 Write-Host ""
 Write-Host "[1/2] 启动 LAN 服务器..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd E:\pokeregue\pokerogue; Write-Host '=== LAN 服务器 (端口 9090) ===' -ForegroundColor Yellow; node scripts/lan-server.mjs"
+Start-Process powershell -WorkingDirectory $PSScriptRoot -ArgumentList "-NoExit", "-Command", "Write-Host '=== LAN 服务器 (端口 9090) ===' -ForegroundColor Yellow; node scripts/lan-server.mjs"
 
 Write-Host "[2/2] 启动游戏..." -ForegroundColor Cyan
 Start-Sleep -Seconds 2

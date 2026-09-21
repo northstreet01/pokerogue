@@ -112,7 +112,7 @@ Client 创建 ReplayPhase 系列，不计算只播动画：
 
 ## Reference Code
 
-**Colyseus UNO Cards Demo** (`E:\pokeregue\reference\cards-demo\server\src\rooms\UnoRoom.ts`)
+**Colyseus UNO Cards Demo** ([`server/src/rooms/UnoRoom.ts`](https://github.com/colyseus/turnbased-cards-demo/blob/master/server/src/rooms/UnoRoom.ts))
 | Method | Line | Pattern |
 |--------|------|---------|
 | `handlePlayCard()` | 453 | 权威验证链（6 步校验） |
